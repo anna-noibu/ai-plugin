@@ -79,7 +79,7 @@ Call the list connections tool to open the integrations UI:
 noibu_list_integrations()
 ```
 
-> **Important:** `noibu_list_connections` renders its own interactive UI panel. Do NOT generate any additional visualization, chart, or custom UI after calling it — the panel is the complete output. Simply wait for the user to tell you they are done or tell you what they want to connect.
+> **Important:** `noibu_list_integrations` renders its own interactive UI panel. Do NOT generate any additional visualization, chart, or custom UI after calling it — the panel is the complete output. Simply wait for the user to tell you they are done or tell you what they want to connect.
  
 ---
 
