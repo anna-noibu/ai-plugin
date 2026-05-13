@@ -60,10 +60,10 @@ Surface a ranked list of high-confidence revenue opportunities using Noibu behav
 
 | Area | Calls |
 |---|---|
-| Acquisition | `noibu_QuerySessions` grouped by campaign tracking parameters (UTM source and medium) |
-| Funnel | `noibu_QuerySessions` grouped by device |
-| Experience | `noibu_PageVisitsQuery` grouped by URL pattern or page type |
-| Product | `noibu_PageVisitsQuery` grouped by URL pattern or page type, filtered to product pages |
+| Acquisition | `noibu_search_sessions` grouped by campaign tracking parameters (UTM source and medium) |
+| Funnel | `noibu_search_sessions` grouped by device |
+| Experience | `noibu_get_page_visits` grouped by URL pattern or page type |
+| Product | `noibu_get_page_visits` grouped by URL pattern or page type, filtered to product pages |
 | All / Everything | All three calls above simultaneously |
 
 - If calls fail due to connectivity: call `suggest_connectors` with query `"Noibu"` and stop

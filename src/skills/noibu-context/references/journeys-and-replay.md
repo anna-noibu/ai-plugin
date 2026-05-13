@@ -2,21 +2,21 @@
 
 Read this reference when the user asks about the shape of multi-step journey patterns across many sessions, or when they explicitly want to watch / see / view a session replay.
 
-## Most "journey" questions belong in noibu_PageVisitsQuery
+## Most "journey" questions belong in noibu_get_page_visits
 
-Default to `noibu_PageVisitsQuery` for journey-shaped questions. The vast majority of prompts that mention "journey", "funnel", "drop-off", "navigation", "path", or "what comes after /cart" are URL-level questions that PageVisitsQuery answers directly:
+Default to `noibu_get_page_visits` for journey-shaped questions. The vast majority of prompts that mention "journey", "funnel", "drop-off", "navigation", "path", or "what comes after /cart" are URL-level questions that PageVisitsQuery answers directly:
 
 - **One-hop predecessor / successor** — "what page comes after /cart", "what's the top URL before /checkout" → URL + `PREV_URL`.
 - **Drop-off / exit / abandonment** — "where do users drop off in checkout", "which pages do users exit from" → `IS_EXIT_PAGE`.
 - **Landing / entry** — "what pages do users land on", "which landing pages convert" → `IS_LANDING_PAGE`.
 
-If the user is asking for an aggregate (count, rate, percentage, ranking by URL) — route to `noibu_PageVisitsQuery` and stop. A URL in the prompt is not by itself a redirect signal; it may be the anchor for the shape question below. The presence of "journey" or "funnel" is not a signal either; what the user is asking for is. Load `references/page-visits.md` for field-level detail.
+If the user is asking for an aggregate (count, rate, percentage, ranking by URL) — route to `noibu_get_page_visits` and stop. A URL in the prompt is not by itself a redirect signal; it may be the anchor for the shape question below. The presence of "journey" or "funnel" is not a signal either; what the user is asking for is. Load `references/page-visits.md` for field-level detail.
 
 ### Funnel-shaped *visualization* requests are different
 
-When the user explicitly asks to **see / chart / visualize / draw** the ecommerce conversion funnel (e.g. "show me the checkout funnel", "render the purchase funnel as a chart", "funnel chart for last 7 days vs previous"), do NOT stop at `noibu_PageVisitsQuery`. Use it (or `noibu_QuerySessions`) to fetch the per-step session counts, then hand the result to the `ecommerce-funnel-visualization` skill — it renders the bar chart inline via `show_widget`. Analytical funnel prompts ("where do users drop off", "abandonment by step") still terminate at `noibu_PageVisitsQuery`.
+When the user explicitly asks to **see / chart / visualize / draw** the ecommerce conversion funnel (e.g. "show me the checkout funnel", "render the purchase funnel as a chart", "funnel chart for last 7 days vs previous"), do NOT stop at `noibu_get_page_visits`. Use it (or `noibu_search_sessions`) to fetch the per-step session counts, then hand the result to the `ecommerce-funnel-visualization` skill — it renders the bar chart inline via `show_widget`. Analytical funnel prompts ("where do users drop off", "abandonment by step") still terminate at `noibu_get_page_visits`.
 
-## noibu_TopPageGroupJourneys (narrow)
+## noibu_get_user_journeys (narrow)
 
 Use ONLY when the user is asking about the SHAPE of multi-step page-CATEGORY patterns across many sessions — ranked aggregated journey shapes at the page-group level, not URLs. Concrete examples:
 
@@ -27,13 +27,13 @@ Use ONLY when the user is asking about the SHAPE of multi-step page-CATEGORY pat
 
 Output is page-group names (e.g. `Product`, `Cart`, `Checkout`), not URLs. Ungrouped visits render as `No Page Group`. Consecutive duplicates are collapsed (`[Product, Product, Cart]` → `[Product, Cart]`).
 
-### When you use this tool, also call noibu_PageVisitsQuery in parallel
+### When you use this tool, also call noibu_get_page_visits in parallel
 
-The tool returns aggregated page-CATEGORY shapes — it hides the underlying URLs and intra-group depth (`[Product]` covers a session that saw one PDP and a session that saw thirty). To give a complete answer, run `noibu_PageVisitsQuery` alongside for URL-level grounding (which specific URLs make up each step, how many PDPs per session, etc.). Do not conclude on the page-group shape alone.
+The tool returns aggregated page-CATEGORY shapes — it hides the underlying URLs and intra-group depth (`[Product]` covers a session that saw one PDP and a session that saw thirty). To give a complete answer, run `noibu_get_page_visits` alongside for URL-level grounding (which specific URLs make up each step, how many PDPs per session, etc.). Do not conclude on the page-group shape alone.
 
 ### Page-group coverage is a prerequisite
 
-The output is only useful if the customer has configured page groups on their domain. If `forwardPaths` is dominated by the `No Page Group` sentinel — or top patterns look like `[No Page Group, No Page Group, …]` — coverage is poor. Abandon this tool for the question, answer from `noibu_PageVisitsQuery` instead, and surface the coverage gap to the user.
+The output is only useful if the customer has configured page groups on their domain. If `forwardPaths` is dominated by the `No Page Group` sentinel — or top patterns look like `[No Page Group, No Page Group, …]` — coverage is poor. Abandon this tool for the question, answer from `noibu_get_page_visits` instead, and surface the coverage gap to the user.
 
 ### Always pass `minSteps = 3`
 
@@ -54,11 +54,11 @@ The anchor visit's own step is NOT in either path array — the full journey is 
 
 ### Anti-patterns
 
-- Do not call this tool for URL-level questions — use `noibu_PageVisitsQuery`.
-- Do not call this tool for counts, rates, bounce, exit, or landing analysis — use `noibu_PageVisitsQuery`.
+- Do not call this tool for URL-level questions — use `noibu_get_page_visits`.
+- Do not call this tool for counts, rates, bounce, exit, or landing analysis — use `noibu_get_page_visits`.
 - Do not pass URLs in `sessionFilters` — session-scope only (device, browser, UTM, conversion). Same shape as QuerySessions filters. `ExpressionFilter` is rejected.
 
-## noibu_session_replay
+## noibu_show_session_replay
 
 Renders ONE page visit from a session as a video inside Claude's UI, and returns the session's full page-visit metadata (URLs, durations, key events per visit). May return a `jazzUrl` for the full session — use it only if present; never construct or mention a Noibu console link otherwise.
 
@@ -69,11 +69,11 @@ USE ONLY when the user **explicitly** asks to watch / see / view a session repla
 - "I want to see where they got stuck in checkout"
 - "Play back session X"
 
-DO NOT use this tool as a data source for session summarization or analysis. The metadata it returns (page visits, events) is a convenience for UI navigation, NOT an analytics shortcut. For session summaries, cohort analysis, or "what did these users do" questions across multiple sessions, use `noibu_PageVisitsQuery` filtered by `SESSION_ID` — it's cheaper, aggregates cleanly, and doesn't render a video for each session.
+DO NOT use this tool as a data source for session summarization or analysis. The metadata it returns (page visits, events) is a convenience for UI navigation, NOT an analytics shortcut. For session summaries, cohort analysis, or "what did these users do" questions across multiple sessions, use `noibu_get_page_visits` filtered by `SESSION_ID` — it's cheaper, aggregates cleanly, and doesn't render a video for each session.
 
 Specifically:
-- Do NOT call `noibu_session_replay` N times to pull event data for N sessions. That's what `noibu_PageVisitsQuery` is for.
-- Do NOT call it just to "see what happened in the session" — use `noibu_PageVisitsQuery` for that.
+- Do NOT call `noibu_show_session_replay` N times to pull event data for N sessions. That's what `noibu_get_page_visits` is for.
+- Do NOT call it just to "see what happened in the session" — use `noibu_get_page_visits` for that.
 
 **Page visit selection:**
 - When `pageVisitIndex` is omitted, the tool auto-selects the most important page visit based on signal strength (errors, ecommerce events, navigation, time on page). The selected index is exposed as `importantIndex` in the response so you can explain why that page visit was chosen.

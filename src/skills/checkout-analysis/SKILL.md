@@ -38,11 +38,11 @@ first. Once they do, the tools appear automatically.
 ## Step 1: Resolve the domain
 
 - **UUID provided**: use it directly.
-- **Name provided**: call `noibu_DomainByName`.
+- **Name provided**: call `noibu_get_domain`.
     - Match found → use the UUID.
     - Suggestions in error body → show them and ask which to use.
-    - No match, no suggestions → fall back to `noibu_ListDomains`.
-- **Nothing provided**: call `noibu_ListDomains` and ask the user to select.
+    - No match, no suggestions → fall back to `noibu_list_domains`.
+- **Nothing provided**: call `noibu_list_domains` and ask the user to select.
 
 ## Step 2: Determine the date range
 
@@ -60,7 +60,7 @@ Tell the user what you're about to query before starting. Fire all five queries 
 **Note on field discovery:** Use `noibu_context` or the API schema to confirm field names — do not guess.
 
 ### Full funnel by depth
-Use `noibu_QuerySessions`. Group by the field that represents how far each session
+Use `noibu_search_sessions`. Group by the field that represents how far each session
 progressed through the purchase funnel (funnel depth). Measure session count.
 Order by sessions descending.
 
@@ -69,7 +69,7 @@ Covers all sessions. Shows how many reached each stage:
 Compute step-to-step drop-off rates in post-processing.
 
 ### Cart & order value baseline
-Use `noibu_QuerySessions`. Filter to sessions that reached at least the checkout
+Use `noibu_search_sessions`. Filter to sessions that reached at least the checkout
 start stage (funnel depth >= 2). Group by the field that indicates whether a
 discount was applied to the order. Measure session count, median completed order
 value, and median product quantity in the completed order. Order by sessions descending.
@@ -79,19 +79,19 @@ Gives discount rate among checkout-entering sessions, and whether discounted
 orders differ in size from full-price ones.
 
 ### Payment method mix
-Use `noibu_QuerySessions`. Filter to sessions where checkout was completed. Group
+Use `noibu_search_sessions`. Filter to sessions where checkout was completed. Group
 by the field that lists payment method names used in a session (array join, limit
 20). Measure session count and median completed order value. Order by sessions
 descending.
 
 ### Delivery method mix
-Use `noibu_QuerySessions`. Filter to sessions where checkout was completed. Group
+Use `noibu_search_sessions`. Filter to sessions where checkout was completed. Group
 by the field that lists delivery/shipping method names used in a session (array
 join, limit 20). Measure session count, median completed order value, and median
 shipping cost. Order by sessions descending.
 
 ### Priority errors on checkout pages
-Use `noibu_GetPriorityErrors`. Filter to priority-type issues on URLs containing
+Use `noibu_list_priority_errors`. Filter to priority-type issues on URLs containing
 "checkout". Match the analysis date window. Limit to 10 results.
 
 Returns pre-indexed error data — much faster than a session aggregation query.
@@ -156,9 +156,9 @@ they depend on what the data shows.
 |---|---|
 | High checkout → payment drop (depth 2→3) | Break down by device type — filter to checkout-entering sessions, group by device; mobile form friction is the most common explanation |
 | High payment → completion drop (depth 3→4) | Break down by payment method — filter to payment-submitted sessions, group by payment method names; completion rates often vary sharply by gateway |
-| ATC → checkout start rate unexpectedly low | `noibu_JourneyPaths` anchored to `/cart` to see what users do instead of proceeding |
+| ATC → checkout start rate unexpectedly low | `noibu_get_user_journeys` anchored to `/cart` to see what users do instead of proceeding |
 | Suspicion that a market blocks at checkout | Group by country filtered to cart-adding sessions — near-zero CVR in a high-traffic country usually means a shipping restriction or missing payment method |
-| Active priority errors returned | Call `noibu_GetErrorDetail` on the top 1–2 issues; include humanId and title so a developer can find them in the console |
+| Active priority errors returned | Call `noibu_get_error` on the top 1–2 issues; include humanId and title so a developer can find them in the console |
 | Discount rate very high (>50% of checkout sessions) | Flag as a business observation — high promotion dependency is a margin risk; no Noibu follow-up needed |
 | A delivery method with unusually high median shipping cost | Cross-tab by country to check if it's concentrated in one market |
 
@@ -181,7 +181,7 @@ Run only the follow-up queries identified above — not a fixed set.
 - Lower traffic (<50K): keep thresholds very low or skip
 
 ### Device breakdown for a funnel stage
-Use `noibu_QuerySessions` when a step-to-step drop is concerning.
+Use `noibu_search_sessions` when a step-to-step drop is concerning.
 
 Filter to sessions that reached at least checkout start (funnel depth >= 2). Group
 by device type. Measure session count, checkout start count, payment submission
@@ -191,7 +191,7 @@ Compute device-specific step rates in post-processing. A device where checkout �
 payment rate is 30%+ lower than others is a strong friction or JS error signal.
 
 ### Country breakdown for funnel anomalies
-Use `noibu_QuerySessions` when you suspect a market is blocked at checkout.
+Use `noibu_search_sessions` when you suspect a market is blocked at checkout.
 
 Filter to sessions that added to cart (funnel depth >= 1). Group by country code
 (limit 25). Measure session count and conversion rate. Order by sessions descending.
@@ -200,7 +200,7 @@ Near-zero CVR in a high-traffic market is almost always a shipping restriction
 or unsupported payment method. Flag as an ops issue, not a UX problem.
 
 ### Payment method completion rate
-Use `noibu_QuerySessions` when the payment → completion drop rate is high overall.
+Use `noibu_search_sessions` when the payment → completion drop rate is high overall.
 
 Filter to sessions that reached payment submission (funnel depth >= 3). Group by
 payment method names (array join, limit 20). Measure session count and checkout
@@ -211,11 +211,11 @@ Compute completion rate per method. A method with high reach but low completion
 
 ### Error detail for checkout issues
 Use when Q5 returned active priority errors.
-Call `noibu_GetErrorDetail` on the top 1–2 issues by session impact.
+Call `noibu_get_error` on the top 1–2 issues by session impact.
 Include humanId and title in the report so the developer can find them in the console.
 
 ### Cart page exit analysis
-Use `noibu_JourneyPaths` when ATC → checkout start rate is unexpectedly low.
+Use `noibu_get_user_journeys` when ATC → checkout start rate is unexpectedly low.
 
 Anchor on URLs starting with /cart, using loose mode. Retrieve forward paths only
 to a max depth of 5 steps.
@@ -349,7 +349,7 @@ The correct names will already be known from the successful queries above.
 
    **Critical implementation details:**
     - `callMcpTool()` requires the **fully-qualified** tool name:
-      `const TOOL = "mcp__fcde485d-....__noibu_QuerySessions";`
+      `const TOOL = "mcp__fcde485d-....__noibu_search_sessions";`
     - Parse records from the wrapped response:
       ```js
       function records(res) {

@@ -33,20 +33,20 @@ run the two-part workflow below.
 
 ## Step 0: Authenticate
 
-If Noibu tools (`noibu_QuerySessions` etc.) are not yet available in the
+If Noibu tools (`noibu_search_sessions` etc.) are not yet available in the
 session, ask the user to authenticate first. Once they do, the tools appear
 automatically.
 
 ## Step 1: Resolve the domain
 
 - **UUID provided**: use it directly.
-- **Name provided**: call `noibu_DomainByName`.
+- **Name provided**: call `noibu_get_domain`.
     - Match found → use the UUID.
     - No match but suggestions returned in error body (e.g.
       `["www.brand.com", "www.brand.ca"]`) → show the suggestions and ask which
-      to use. Do not fall through to `noibu_ListDomains` when suggestions exist.
-    - No match, no suggestions → fall back to `noibu_ListDomains`.
-- **Nothing provided**: call `noibu_ListDomains` and ask the user to select.
+      to use. Do not fall through to `noibu_list_domains` when suggestions exist.
+    - No match, no suggestions → fall back to `noibu_list_domains`.
+- **Nothing provided**: call `noibu_list_domains` and ask the user to select.
 
 ## Step 2: Determine the date range
 
@@ -73,12 +73,12 @@ should measure conceptually. Use `noibu_context` or the API schema to confirm
 the current field names before running. Do not guess field names.
 
 ### Device breakdown
-Use `noibu_QuerySessions`. Group by the field representing device type. Measure
+Use `noibu_search_sessions`. Group by the field representing device type. Measure
 session count, conversion rate, and revenue per session. Order by conversion
 rate descending.
 
 ### Country breakdown
-Use `noibu_QuerySessions`. Group by the field representing country (limit 30).
+Use `noibu_search_sessions`. Group by the field representing country (limit 30).
 Measure session count, conversion rate, and revenue per session. Order by
 sessions descending.
 
@@ -86,7 +86,7 @@ Order by sessions (not CVR) so the highest-traffic markets appear first —
 easier to spot high-volume underperformers.
 
 ### Marketing channel breakdown
-Use `noibu_QuerySessions`. Group by the fields representing UTM source and UTM
+Use `noibu_search_sessions`. Group by the fields representing UTM source and UTM
 medium together (limit 30). Measure session count, conversion rate, and revenue
 per session. Order by sessions descending.
 
@@ -161,18 +161,18 @@ Run only the follow-up queries identified above — not a fixed set.
 - Lower traffic (<50K): keep thresholds very low or skip them entirely
 
 **Campaign breakdown** — when one channel's aggregate conversion rate hides
-variation between individual campaigns within it. Use `noibu_QuerySessions`,
+variation between individual campaigns within it. Use `noibu_search_sessions`,
 grouped by UTM campaign and UTM medium together (limit 25). Order by sessions
 descending. Apply the same measures as the broad overview (session count, CVR,
 revenue per session).
 
 **Landing page breakdown** — when a country or campaign seems to have friction
-at the entry point. Use `noibu_QuerySessions`, grouped by the landing URL field
+at the entry point. Use `noibu_search_sessions`, grouped by the landing URL field
 (limit 25). Order by sessions descending. Filter to the relevant country or
 campaign from the broad overview to keep results focused.
 
 **Funnel stage breakdown** — when you want to know *where* in the checkout
-a segment drops off. Use `noibu_QuerySessions`, grouped by funnel depth and one
+a segment drops off. Use `noibu_search_sessions`, grouped by funnel depth and one
 additional dimension (device type, country, or UTM medium — whichever the
 overview flagged). Order by sessions descending. Choose the second dimension
 based on what the overview showed; computing step-to-step rates by segment
@@ -254,8 +254,8 @@ names. The correct names will already be known from the successful queries above
 
     - `callMcpTool()` requires the **fully-qualified** tool name — the same
       `mcp__<server>__<tool>` string used in the `mcp_tools` allowlist. The
-      short name (e.g. `"noibu_QuerySessions"`) will be rejected. Store it as
-      a constant: `const TOOL = "mcp__fcde485d-....__noibu_QuerySessions";`
+      short name (e.g. `"noibu_search_sessions"`) will be rejected. Store it as
+      a constant: `const TOOL = "mcp__fcde485d-....__noibu_search_sessions";`
 
     - `callMcpTool()` returns a content-wrapped object, not a plain parsed
       response. Parse records like this:

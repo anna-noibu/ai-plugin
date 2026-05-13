@@ -10,15 +10,15 @@ Renders an interactive integrations panel inside Claude's UI listing all support
 
 **After calling this tool, do NOT generate a text table, list, or summary of the integrations.** The UI panel displays all the data. Respond with one brief sentence at most (e.g. "Here are your integrations.") then stop.
 
-The rendered panel has built-in **Connect** and **Disconnect** buttons per row that drive `noibu_connect` / `noibu_disconnect` directly from the iframe. You don't need to call those tools yourself once the panel is up unless the user asks in chat.
+The rendered panel has built-in **Connect** and **Disconnect** buttons per row that drive `noibu_connect_integration` / `noibu_disconnect_integration` directly from the iframe. You don't need to call those tools yourself once the panel is up unless the user asks in chat.
 
-## noibu_connect
+## noibu_connect_integration
 
 Call when the user wants to connect a named service in chat (e.g. "connect my Shopify"). The UI opens the OAuth flow automatically. **Do NOT describe the OAuth steps, repeat the redirect URL, or generate any further text** — the panel handles it. Respond with one brief sentence (e.g. "Opening Shopify authorization now.") then stop.
 
 (The integrations panel calls this tool internally when the user clicks **Connect**, so you usually only invoke it directly when the panel isn't already mounted.)
 
-## noibu_check_connection
+## noibu_check_integration
 
 Call when the user says "done" after an OAuth flow. On success, confirms the connection. On failure, shows the root cause and offers to retry.
 
@@ -39,6 +39,6 @@ Toolkit slug → display name:
 ## Connection flow
 
 1. User asks about integrations → call `noibu_list_integrations` — the Integrations panel mounts and shows all connectors grouped by category.
-2. The panel owns Connect and Disconnect — **do not call `noibu_connect` or `noibu_disconnect` directly while the panel is visible**.
-3. After the user clicks **Connect** in the panel, it opens the OAuth URL automatically and polls every 10 s (up to 1 min) until the connection succeeds or fails — **do not prompt the user to say "done"** and do not call `noibu_check_connection`.
-4. If the panel is not mounted (chat-only context), call `noibu_connect` directly, then ask the user to say "done" and call `noibu_check_connection` to confirm.
+2. The panel owns Connect and Disconnect — **do not call `noibu_connect_integration` or `noibu_disconnect_integration` directly while the panel is visible**.
+3. After the user clicks **Connect** in the panel, it opens the OAuth URL automatically and polls every 10 s (up to 1 min) until the connection succeeds or fails — **do not prompt the user to say "done"** and do not call `noibu_check_integration`.
+4. If the panel is not mounted (chat-only context), call `noibu_connect_integration` directly, then ask the user to say "done" and call `noibu_check_integration` to confirm.
