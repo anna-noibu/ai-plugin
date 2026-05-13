@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "noibu-mcp": {
+    "noibu": {
       "type": "sse",
       "url": "https://mcp.noibu.com"
     }

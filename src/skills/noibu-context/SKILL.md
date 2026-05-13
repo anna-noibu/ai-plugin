@@ -37,7 +37,7 @@ Both query tools require `orderBy` at the `input` level — see **Query Constrai
 - "which pages are slow / broken / get the most traffic", web vitals
   (LCP/CLS/INP) → `noibu_PageVisitsQuery` (load `references/page-visits.md`).
 - Quantitative click or scroll questions, or "show me the clickmap/scrollmap" →
-  load `references/clickmap-scrollmap.md`.
+  load `references/visualize-page-visits.md`.
 - Multi-step journey patterns / shapes across many sessions, OR an explicit
   request to watch a session replay → load `references/journeys-and-replay.md`.
   Note: "funnel", "drop-off", "what comes after /cart" are URL-level
@@ -51,10 +51,10 @@ Both query tools require `orderBy` at the `input` level — see **Query Constrai
 
 | User verb | Primary tool |
 |---|---|
-| "How many clicks on …", "which button …", "top clicked …" | `noibu_clickmap_metrics` |
-| "Show / view / visualize / display the clickmap" | `noibu_show_clickmap_visualization` |
-| "What % scroll to …", "average scroll depth", "how many reach the bottom/footer" | `noibu_scrollmap_metrics` |
-| "Show / view / visualize / display the scrollmap" | `noibu_show_scrollmap_visualization` |
+| "How many clicks on …", "which button …", "top clicked …" | `noibu_PageVisitsQuery` |
+| "Show / view / visualize / display the clickmap" | `noibu_show_page_visits_visualization` with `visualization.clickMap` |
+| "What % scroll to …", "average scroll depth", "how many reach the bottom/footer" | `noibu_PageVisitsQuery` |
+| "Show / view / visualize / display the scrollmap" | `noibu_show_page_visits_visualization` with `visualization.scrollMap` |
 
 ## Sessions vs page visits
 
@@ -159,7 +159,8 @@ Load exactly one reference based on the topic of the user's question. Each file 
 |---|---|
 | Session-level analytics (conversion rate, revenue, AOV, traffic sources, bounce, search, products, time-series trends) | `references/sessions.md` |
 | Page-level analytics (per-page traffic, time on page, web vitals, landing/exit pages, visual errors, scroll depth, cohort behaviour by URL) | `references/page-visits.md` |
-| Clicks or scroll behaviour — quantitative ("how many", "top clicked", "% reaching footer") or visual ("show the clickmap/scrollmap") | `references/clickmap-scrollmap.md` |
+| Clicks or scroll behaviour — quantitative ("how many", "top clicked", "% reaching footer") | `references/page-visits.md` |
+| Clicks or scroll behaviour — visual ("show the clickmap/scrollmap") | `references/visualize-page-visits.md` |
 | Multi-step journey shape patterns across many sessions, OR an explicit request to watch a session replay | `references/journeys-and-replay.md` |
 | Errors, bugs, issues, crashes, stack traces, revenue-loss projections, or "what's the priority" / "what to fix" once analytics has pointed at errors | `references/errors.md` |
 | Connecting, disconnecting, listing, or checking the status of third-party integrations | `references/integrations.md` |
