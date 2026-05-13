@@ -38,11 +38,11 @@ first. Once they do, the tools appear automatically.
 ## Step 1: Resolve the domain
 
 - **UUID provided**: use it directly.
-- **Name provided**: call `noibu_DomainByName`.
+- **Name provided**: call `noibu_get_domain`.
     - Match found → use the UUID.
     - Suggestions in error body → show them and ask which to use.
-    - No match, no suggestions → fall back to `noibu_ListDomains`.
-- **Nothing provided**: call `noibu_ListDomains` and ask the user to select.
+    - No match, no suggestions → fall back to `noibu_list_domains`.
+- **Nothing provided**: call `noibu_list_domains` and ask the user to select.
 
 ## Step 2: Determine the date range
 
@@ -67,29 +67,29 @@ should measure conceptually. Use `noibu_context` or the API schema to confirm
 the current field names before running. Do not guess field names.
 
 ### Products by views
-Use `noibu_QuerySessions`. Group by the field that lists which product titles
+Use `noibu_search_sessions`. Group by the field that lists which product titles
 were viewed in a session (array join, limit 50). Measure session count,
 conversion rate, and revenue per session. Order by sessions descending.
 
 ### Products by add-to-cart
-Use `noibu_QuerySessions`. Group by the field that lists which product titles
+Use `noibu_search_sessions`. Group by the field that lists which product titles
 were added to cart in a session (array join, limit 50). Measure session count
 and conversion rate. Order by sessions descending.
 
 ### Products by purchase
-Use `noibu_QuerySessions`. Group by the field that lists which product titles
+Use `noibu_search_sessions`. Group by the field that lists which product titles
 appeared in completed orders (array join, limit 50). Measure session count and
 median order/cart value. Order by sessions (completed-order count), not revenue.
 Median cart value reflects the typical order size when this product was purchased
 — a useful merchandising signal even with multi-product inflation.
 
 ### Collections by conversion
-Use `noibu_QuerySessions`. Group by the field that lists which collection titles
+Use `noibu_search_sessions`. Group by the field that lists which collection titles
 were viewed in a session (array join, limit 30). Measure session count, conversion
 rate, and revenue per session. Order by sessions descending.
 
 ### Product types by conversion
-Use `noibu_QuerySessions`. Group by the field that lists which product types
+Use `noibu_search_sessions`. Group by the field that lists which product types
 were viewed in a session (array join, limit 20). Measure session count, conversion
 rate, and revenue per session. Order by sessions descending.
 Product types give a mid-level view between SKUs and collections — useful for
@@ -183,7 +183,7 @@ Run only the follow-up queries identified above — not a fixed set.
 - Lower traffic (<50K): keep thresholds very low or skip
 
 ### Product page deep-dive
-Use `noibu_PageVisitsQuery` when a product has high views but a low
+Use `noibu_get_page_visits` when a product has high views but a low
 view-to-ATC rate. The most important metric is scroll depth — if the median
 scroll depth ratio is below 0.25, users are not reaching the add-to-cart button.
 
@@ -203,7 +203,7 @@ Interpret scroll depth:
 - High errors on one URL variant: potential JS error blocking add-to-cart
 
 ### Funnel depth breakdown for a specific product
-Use `noibu_QuerySessions` when a product has strong ATC but weak purchase.
+Use `noibu_search_sessions` when a product has strong ATC but weak purchase.
 
 Filter to sessions where the target product title was viewed. Group by the funnel
 depth field (represents how far through the purchase funnel the session
@@ -221,7 +221,7 @@ Lead with "Viewed only %" = null sessions ÷ total sessions — this is the most
 actionable top-line number.
 
 ### Country breakdown for underperforming collections
-Use `noibu_QuerySessions` when a collection's CVR is well below the site average.
+Use `noibu_search_sessions` when a collection's CVR is well below the site average.
 
 Filter to sessions where the target collection title was viewed. Group by country
 code (limit 20). Measure session count, conversion rate, and revenue per session.
@@ -233,7 +233,7 @@ This is almost always a checkout availability or shipping restriction gap —
 surface it as an ops/localization issue rather than a merchandising one.
 
 ### Product mix within a collection
-Use `noibu_QuerySessions` when a collection underperforms and the country
+Use `noibu_search_sessions` when a collection underperforms and the country
 breakdown looks clean (i.e. it's not a localization issue).
 
 Filter to sessions where the target collection title was viewed. Group by the
@@ -241,7 +241,7 @@ viewed product titles field (array join, limit 25). Measure session count and
 conversion rate. Order by sessions descending.
 
 ### Journey paths from a product page
-Use `noibu_JourneyPaths` when you want to understand exit behaviour for a
+Use `noibu_get_user_journeys` when you want to understand exit behaviour for a
 specific product — especially one with high views but high bounce.
 
 Anchor on URLs starting with the product's slug fragment, using loose mode.
@@ -386,7 +386,7 @@ The correct names will already be known from the successful queries above.
 
    **Critical implementation details:**
     - `callMcpTool()` requires the **fully-qualified** tool name:
-      `const TOOL = "mcp__fcde485d-....__noibu_QuerySessions";`
+      `const TOOL = "mcp__fcde485d-....__noibu_search_sessions";`
     - Parse records from the wrapped response:
       ```js
       function records(res) {

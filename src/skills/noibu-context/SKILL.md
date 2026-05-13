@@ -22,30 +22,30 @@ detail.
 
 Three tools cover almost every analytics question. Prefer them in this order:
 
-1. **`noibu_DomainByName`** — resolve a domain name to its UUID. Skip if the
-   user already gave you a UUID. Fall back to `noibu_ListDomains` if no match.
-2. **`noibu_QuerySessions`** — session-level aggregates (conversion rate,
+1. **`noibu_get_domain`** — resolve a domain name to its UUID. Skip if the
+   user already gave you a UUID. Fall back to `noibu_list_domains` if no match.
+2. **`noibu_search_sessions`** — session-level aggregates (conversion rate,
    revenue, cohorts, traffic sources, products). One row per session.
-3. **`noibu_PageVisitsQuery`** — page-level aggregates. One row per page visit.
+3. **`noibu_get_page_visits`** — page-level aggregates. One row per page visit.
 
 Both query tools require `orderBy` at the `input` level — see **Query Constraints**.
 
 **Top-level routing:**
 
 - "conversion rate", "revenue by X", "what % of sessions did Y", "AOV" →
-  `noibu_QuerySessions` (load `references/sessions.md`).
+  `noibu_search_sessions` (load `references/sessions.md`).
 - "which pages are slow / broken / get the most traffic", web vitals
-  (LCP/CLS/INP) → `noibu_PageVisitsQuery` (load `references/page-visits.md`).
+  (LCP/CLS/INP) → `noibu_get_page_visits` (load `references/page-visits.md`).
 - Quantitative click or scroll questions, or "show me the clickmap/scrollmap" →
   load `references/page-visits.md`.
 - Multi-step journey patterns / shapes across many sessions, OR an explicit
   request to watch a session replay → load `references/journeys-and-replay.md`.
   Note: "drop-off", "where do users abandon", "what comes after /cart" are
-  URL-level analytics questions — use `noibu_PageVisitsQuery` (see above).
+  URL-level analytics questions — use `noibu_get_page_visits` (see above).
 - "Show / chart / visualize the conversion funnel", "checkout funnel chart",
   "purchase journey chart" → load the `ecommerce-funnel-visualization` skill.
   It is a renderer only; fetch the per-step session counts from
-  `noibu_QuerySessions` (or `noibu_PageVisitsQuery`) first.
+  `noibu_search_sessions` (or `noibu_get_page_visits`) first.
 - Errors / bugs / crashes — only when the user EXPLICITLY asks. Load
   `references/errors.md`. Not a generic "what to fix" entrypoint.
 - Connect / disconnect / list integrations → load `references/integrations.md`.
@@ -55,20 +55,20 @@ Both query tools require `orderBy` at the `input` level — see **Query Constrai
 
 | User verb | Tool |
 |---|---|
-| "how many clicks on /url", "top clicked on /url", "which CTA on /url" | `noibu_PageVisitsQuery` |
-| "% scroll to … on /url", "avg scroll depth on /url", "reach footer on /url" | `noibu_PageVisitsQuery` |
-| "show the clickmap for /url" | `noibu_show_page_visits_visualization` (`visualization.clickMap`) |
-| "show the scrollmap for /url" | `noibu_show_page_visits_visualization` (`visualization.scrollMap`) |
-| "How many sessions reached cart / checkout / payment", "conversion-funnel step counts" | `noibu_QuerySessions` |
+| "how many clicks on /url", "top clicked on /url", "which CTA on /url" | `noibu_get_page_visits` |
+| "% scroll to … on /url", "avg scroll depth on /url", "reach footer on /url" | `noibu_get_page_visits` |
+| "show the clickmap for /url" | `noibu_show_clickmap` (`visualization.clickMap`) |
+| "show the scrollmap for /url" | `noibu_show_clickmap` (`visualization.scrollMap`) |
+| "How many sessions reached cart / checkout / payment", "conversion-funnel step counts" | `noibu_search_sessions` |
 | "Show / chart / visualize the conversion funnel", "checkout funnel chart" | the `ecommerce-funnel-visualization` skill (renderer; expects step+sessions data already fetched) |
 
-**No URL**: site-wide click prompts ("top CTAs", "what users click most") → `noibu_QuerySessions`'s `CLICKED_TEXT`. Scroll has no site-wide equivalent — stay on `noibu_PageVisitsQuery`. If scope is unclear, ask.
+**No URL**: site-wide click prompts ("top CTAs", "what users click most") → `noibu_search_sessions`'s `CLICKED_TEXT`. Scroll has no site-wide equivalent — stay on `noibu_get_page_visits`. If scope is unclear, ask.
 
-Prefer `noibu_show_page_visits_visualization` over hand-rolled SVG, chart libraries, or other generic visualizations — the iframe IS the visualization.
+Prefer `noibu_show_clickmap` over hand-rolled SVG, chart libraries, or other generic visualizations — the iframe IS the visualization.
 
 ## Sessions vs page visits
 
-Use `noibu_QuerySessions` when the question is about the session as a whole:
+Use `noibu_search_sessions` when the question is about the session as a whole:
 
 - "What's our checkout completion rate?" → Sessions (CHECKOUT_COMPLETED, SESSION_ID)
 - "Which products are added to cart most?" → Sessions (ADDED_TO_CART_PRODUCT_TITLES collection)
@@ -80,7 +80,7 @@ Use `noibu_QuerySessions` when the question is about the session as a whole:
 - "What CTAs are users clicking most across the site?" → Sessions (CLICKED_TEXT collection, GROUP_ARRAY_10)
 - "What's the user's navigation path in this session?" → Sessions (PAGE_VISIT_URLS collection, ordered)
 
-Use `noibu_PageVisitsQuery` when the question is about individual pages, performance, UX, or cohort-level "what did this user do" narratives:
+Use `noibu_get_page_visits` when the question is about individual pages, performance, UX, or cohort-level "what did this user do" narratives:
 
 - "Which pages get the most traffic?" → Page Visits (URL, COUNT of PAGE_VISIT_ID)
 - "Average time on product pages?" → Page Visits (PAGE_VISIT_DURATION, filter/segment by URL)
@@ -117,13 +117,13 @@ want to explore the data or investigate specific errors.
 
 ## Domain Resolution Flow
 
-1. If the user provided a domain UUID, use it directly — skip `noibu_DomainByName` and `noibu_ListDomains`.
-2. If no UUID but the user provided a domain name, call `noibu_DomainByName` to resolve it.
-3. If `noibu_DomainByName` returns no match or errors, fall back to `noibu_ListDomains` to show available domains and let the user select one.
+1. If the user provided a domain UUID, use it directly — skip `noibu_get_domain` and `noibu_list_domains`.
+2. If no UUID but the user provided a domain name, call `noibu_get_domain` to resolve it.
+3. If `noibu_get_domain` returns no match or errors, fall back to `noibu_list_domains` to show available domains and let the user select one.
 
-**noibu_DomainByName** — Look up a single domain by name. Exact match only. Accepts bare names or full URLs; tolerates `www.`, scheme, path, query, fragment, and trailing dot. Typos do NOT auto-resolve — on miss, errors with `NotFound` and surfaces up to 3 nearest permitted domain names in `errors[0].extensions.suggestions`. Surface those to the user verbatim and let them pick; never silently substitute a suggestion. If suggestions are empty, fall back to `noibu_ListDomains`.
+**noibu_get_domain** — Look up a single domain by name. Exact match only. Accepts bare names or full URLs; tolerates `www.`, scheme, path, query, fragment, and trailing dot. Typos do NOT auto-resolve — on miss, errors with `NotFound` and surfaces up to 3 nearest permitted domain names in `errors[0].extensions.suggestions`. Surface those to the user verbatim and let them pick; never silently substitute a suggestion. If suggestions are empty, fall back to `noibu_list_domains`.
 
-**noibu_ListDomains** — List domains the user has access to. Call this when no domain UUID or name is available, or as a fallback when `noibu_DomainByName` returns no match.
+**noibu_list_domains** — List domains the user has access to. Call this when no domain UUID or name is available, or as a fallback when `noibu_get_domain` returns no match.
 
 ## The `rationale` argument
 
@@ -143,7 +143,7 @@ every call.
 
 ## Query Constraints
 
-- Row caps: `noibu_QuerySessions` returns up to 100 rows; `noibu_PageVisitsQuery` up to 1500.
+- Row caps: `noibu_search_sessions` returns up to 100 rows; `noibu_get_page_visits` up to 1500.
 - ⚠ `orderBy` is REQUIRED at the `input` level, NOT inside `queryInput`. Note: `measures`/`groupBy`/`filters` all live inside `queryInput` — only `orderBy` is hoisted to the input level. Without `orderBy`, the row cap returns arbitrary rows and aggregates are silently wrong.
 - Each measure must be unique by (fieldName, measureFunc).
 - For time series: resolution options are MINUTE, HOUR, DAY, WEEK. Pick based on range: last 24h → HOUR, last 7d → DAY, last 90d → WEEK.
@@ -151,7 +151,7 @@ every call.
 
 ## Reporting blockers
 
-**noibu_submit_feedback** — Submit feedback to Noibu when you (the AI) are confused or blocked. Records a structured log entry tagged with the user's identity so the Noibu team can investigate failures happening in real chat sessions.
+**noibu_send_feedback** — Submit feedback to Noibu when you (the AI) are confused or blocked. Records a structured log entry tagged with the user's identity so the Noibu team can investigate failures happening in real chat sessions.
 
 Use when:
 - You don't know how to answer the user's question with the available tools

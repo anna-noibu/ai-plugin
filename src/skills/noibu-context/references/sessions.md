@@ -2,7 +2,7 @@
 
 Read this reference when the user asks session-level questions: conversion rate, revenue, AOV, traffic sources, bounce rate, products viewed/purchased, search behaviour, discount usage, time-series trends.
 
-## noibu_QuerySessions
+## noibu_search_sessions
 
 Session-level analytics. One row per session. `orderBy` is REQUIRED at the `input` level. Use for:
 
@@ -22,7 +22,7 @@ Session-level analytics. One row per session. `orderBy` is REQUIRED at the `inpu
 - Segmentation by: browser, OS, device type, country, region, UTM params, checkout status,
   discount usage, cart currency
 
-## noibu_SessionQueryTimeSeries
+## noibu_get_session_trends
 
 Same data as QuerySessions but bucketed over time. Use when the user asks about trends, changes, or "how has X changed over Y period." Resolution options: MINUTE, HOUR, DAY, WEEK. Pick by range: last 24h → HOUR, last 7d → DAY, last 90d → WEEK.
 

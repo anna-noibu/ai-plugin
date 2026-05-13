@@ -2,12 +2,12 @@
 
 Read this reference when the user asks page-level questions: per-page traffic, time on page, web vitals (LCP/CLS/INP/FCP/TTFB/FID), landing/exit pages, visual errors, scroll depth, click/scroll behaviour, or cohort behaviour for a specific URL.
 
-## noibu_PageVisitsQuery
+## noibu_get_page_visits
 
 Page-level analytics. One row per page visit. `orderBy` is REQUIRED at the `input` level. Use for:
 
 - Per-page traffic: URL visit counts, per-page engagement, bounce by URL
-- User interaction — **per-page only**: `CLICKED_SELECTOR_COUNT` (total clicks), `CLICKED_SELECTORS` (CSS selectors), `CLICKED_TEXT` (text users click — best per-page CTA / rage-click / friction signal). Site-wide aggregation across sessions → `noibu_QuerySessions`'s `CLICKED_TEXT`, not this tool.
+- User interaction — **per-page only**: `CLICKED_SELECTOR_COUNT` (total clicks), `CLICKED_SELECTORS` (CSS selectors), `CLICKED_TEXT` (text users click — best per-page CTA / rage-click / friction signal). Site-wide aggregation across sessions → `noibu_search_sessions`'s `CLICKED_TEXT`, not this tool.
 - Page timing: `PAGE_VISIT_DURATION`, `PAGE_VISIT_START_TIME`, `PAGE_VISIT_END_TIME`
 - Performance / web vitals — `LCP`, `CLS`, `INP`, `FCP`, `TTFB`, `FID`. **Use
   `QUANTILE_75` first** (the canonical Core Web Vitals statistic — Google's
@@ -34,9 +34,9 @@ When the user asks "how is my LCP" / "what's my INP" / "which pages are slow", l
 
 Web vitals and `VISUAL_ERROR_COUNT` live here, not in error tools. "Slow pages", "broken feeling", "UX quality" questions route to this tool — do NOT reach for error tools.
 
-## Clickmaps & scrollmaps → `noibu_show_page_visits_visualization`
+## Clickmaps & scrollmaps → `noibu_show_clickmap`
 
-When the user wants to **see** click or scroll behaviour ("show me the clickmap", "scrollmap overlay"), call `noibu_show_page_visits_visualization`. Renders heatmap overlays on a page snapshot inside an MCP App iframe. Visual only — no numeric counts in the payload. Pair with `noibu_PageVisitsQuery` if numbers help too.
+When the user wants to **see** click or scroll behaviour ("show me the clickmap", "scrollmap overlay"), call `noibu_show_clickmap`. Renders heatmap overlays on a page snapshot inside an MCP App iframe. Visual only — no numeric counts in the payload. Pair with `noibu_get_page_visits` if numbers help too.
 
 Set `visualization` to exactly one:
 
@@ -46,4 +46,4 @@ Set `visualization` to exactly one:
   - `REVENUE_PER_SESSION` — elements correlated with revenue
 - `{ scrollMap: {} }` — scroll-depth heatmap
 
-**Prefer `noibu_show_page_visits_visualization` over generic visualizations.** Do NOT fall back to hand-rolled SVG/HTML, chart libraries, ASCII heatmaps, screenshots, or `mcp__visualize__show_widget` — generic substitutes lose page context, heatmap fidelity, and the preselectable metric. The iframe IS the visualization.
+**Prefer `noibu_show_clickmap` over generic visualizations.** Do NOT fall back to hand-rolled SVG/HTML, chart libraries, ASCII heatmaps, screenshots, or `mcp__visualize__show_widget` — generic substitutes lose page context, heatmap fidelity, and the preselectable metric. The iframe IS the visualization.
