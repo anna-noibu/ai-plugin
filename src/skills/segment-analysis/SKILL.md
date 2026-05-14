@@ -178,6 +178,21 @@ overview flagged). Order by sessions descending. Choose the second dimension
 based on what the overview showed; computing step-to-step rates by segment
 reveals exactly where friction is highest.
 
+After the query returns, decide based on segment count:
+
+- **One segment** (e.g. only mobile is being investigated): render the funnel as
+  an inline bar chart — load `../noibu-context/references/funnel-visualization.md`
+  and follow its workflow. Pass four steps: Add to cart (depth ≥ 1) → Checkout
+  started (depth ≥ 2) → Payment submitted (depth ≥ 3) → Completed (depth = 4),
+  scoped to the focal segment. Call `show_widget` with `title: "<segment>_funnel"`
+  (e.g. `mobile_funnel`).
+- **Two segments** (e.g. mobile vs desktop): call the reference twice, once per
+  segment, and render stacked. Do not encode the comparison via the reference's
+  `delta` field — that field is for time-period comparison and would muddy a
+  segment-vs-segment read.
+- **Three or more segments**: stay on the table. The chart format does not
+  generalise to N parallel funnels.
+
 ---
 
 ## Rendering the final report

@@ -220,6 +220,19 @@ a data error.
 Lead with "Viewed only %" = null sessions ÷ total sessions — this is the most
 actionable top-line number.
 
+After the query returns, render the funnel as an inline bar chart — load
+`../noibu-context/references/funnel-visualization.md` and follow its workflow.
+Pass five steps in order:
+  1. Viewed (total sessions that viewed the product)
+  2. Added to cart (depth ≥ 1)
+  3. Checkout started (depth ≥ 2)
+  4. Payment submitted (depth ≥ 3)
+  5. Completed (depth = 4)
+Call `show_widget` with `title: "product_funnel"` and a loading message that
+names the product (e.g. "Drawing Devon Knit Polo funnel..."). The compressed-
+first-bar mode in the template handles the typical viewed-vs-ATC ratio
+automatically.
+
 ### Country breakdown for underperforming collections
 Use `noibu_search_sessions` when a collection's CVR is well below the site average.
 
