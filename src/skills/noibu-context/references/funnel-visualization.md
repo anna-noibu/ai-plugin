@@ -1,22 +1,12 @@
----
-name: ecommerce-funnel-visualization
-description: >
-  Renders an ecommerce conversion funnel as an inline bar chart. Use only when
-  the user asks to see an ecommerce funnel or linear user flow (with or without
-  a comparison time period), AND when data is available as a sequential list of
-  steps with per-step session counts. Triggers on "show me the funnel", "funnel
-  chart", "checkout funnel", "conversion funnel", or "purchase journey", with
-  or without a comparison period. A comparison might be "show me the funnel for
-  the past 7 days vs the previous 7 days".
----
+# Funnel visualization
 
-# Funnel Visualization
+Read this reference when the user asks to chart, visualize, or "show" an ecommerce conversion funnel (e.g. "show me the funnel", "checkout funnel chart", "purchase journey chart", "render the funnel for last 7 days vs previous"). This is a renderer only — fetch the per-step session counts from `noibu_search_sessions` (or `noibu_get_page_visits`) first, then drive the chart with `show_widget`.
 
-Renders ecommerce funnel data as a polished horizontal bar chart using `show_widget`.
+Analytical funnel prompts like "where do users drop off" or "abandonment by step" terminate at `noibu_get_page_visits` (see `references/page-visits.md`) — do not detour through this reference.
 
 ## How to invoke
 
-1. **Read `template.html`** from the same directory as this SKILL.md file.
+1. **Read `funnel-template.html`** from the same directory as this reference.
 2. **Replace `__STEPS__`** with the JSON step array and **`__OPTS__`** with an options object (see formats below).
 3. **Call `show_widget`** with:
    - `title`: short snake_case name, e.g. `checkout_funnel`

@@ -14,7 +14,7 @@ If the user is asking for an aggregate (count, rate, percentage, ranking by URL)
 
 ### Funnel-shaped *visualization* requests are different
 
-When the user explicitly asks to **see / chart / visualize / draw** the ecommerce conversion funnel (e.g. "show me the checkout funnel", "render the purchase funnel as a chart", "funnel chart for last 7 days vs previous"), do NOT stop at `noibu_get_page_visits`. Use it (or `noibu_search_sessions`) to fetch the per-step session counts, then hand the result to the `ecommerce-funnel-visualization` skill — it renders the bar chart inline via `show_widget`. Analytical funnel prompts ("where do users drop off", "abandonment by step") still terminate at `noibu_get_page_visits`.
+When the user explicitly asks to **see / chart / visualize / draw** the ecommerce conversion funnel (e.g. "show me the checkout funnel", "render the purchase funnel as a chart", "funnel chart for last 7 days vs previous"), do NOT stop at `noibu_get_page_visits`. Use it (or `noibu_search_sessions`) to fetch the per-step session counts, then hand the result to `references/funnel-visualization.md` — it renders the bar chart inline via `show_widget`. Analytical funnel prompts ("where do users drop off", "abandonment by step") still terminate at `noibu_get_page_visits`.
 
 ## noibu_get_user_journeys (narrow)
 
