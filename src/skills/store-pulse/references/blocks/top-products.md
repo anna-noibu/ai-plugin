@@ -37,11 +37,11 @@ One query per period. Group by product title (`arrayJoin` on `VIEWED_PRODUCT_TIT
       }
     ],
     "groupBy": {
-      "arrayJoin": { "arrayJoinCollection": "VIEWED_PRODUCT_TITLES" },
-      "limit": 5
-    }
-  },
-  "orderBy": { "measureAlias": "sessions", "direction": "DESCENDING" }
+      "arrayJoin": { "arrayJoinCollection": "VIEWED_PRODUCT_TITLES" }
+    },
+    "orderBy": { "measureAlias": "sessions", "direction": "DESCENDING" },
+    "limit": 5
+  }
 }
 ```
 

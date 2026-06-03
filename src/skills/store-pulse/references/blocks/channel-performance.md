@@ -46,9 +46,10 @@ One query per period, grouped by `UTM_SOURCE` and `UTM_MEDIUM`:
       { "predefined": { "measure": "CONVERSION_RATE", "measureAlias": "cvr" } },
       { "predefined": { "measure": "REVENUE_PER_SESSION", "measureAlias": "rps" } }
     ],
-    "groupBy": { "fieldSegments": ["UTM_SOURCE", "UTM_MEDIUM"], "limit": 50 }
-  },
-  "orderBy": { "measureAlias": "sessions", "direction": "DESCENDING" }
+    "groupBy": { "fieldSegments": ["UTM_SOURCE", "UTM_MEDIUM"] },
+    "orderBy": { "measureAlias": "sessions", "direction": "DESCENDING" },
+    "limit": 50
+  }
 }
 ```
 

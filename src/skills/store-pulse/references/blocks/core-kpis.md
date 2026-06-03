@@ -36,9 +36,9 @@ One call per period (current and prior), or one call with `compareToPrevious: tr
         { "predefined": { "measure": "CONVERSION_RATE", "measureAlias": "cvr" } },
         { "predefined": { "measure": "REVENUE_PER_SESSION", "measureAlias": "rps" } },
         { "aggregate": { "measureAlias": "aov", "measureFunc": "AVG", "target": { "field": "CHECKOUT_COMPLETE_TOTAL_VALUE" } } }
-      ]
-    },
-    "orderBy": { "measureAlias": "sessions", "direction": "DESCENDING" }
+      ],
+      "orderBy": { "measureAlias": "sessions", "direction": "DESCENDING" }
+    }
   }
 }
 ```

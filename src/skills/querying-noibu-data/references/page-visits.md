@@ -4,7 +4,7 @@ Read this reference when the user asks page-level questions: per-page traffic, t
 
 ## noibu_get_page_visits
 
-Page-level analytics. One row per page visit. `orderBy` is REQUIRED at the `input` level. Use for:
+Page-level analytics. One row per page visit. `orderBy` is REQUIRED (inside `queryInput`). Use for:
 
 - Per-page traffic: URL visit counts, per-page engagement, bounce by URL
 - User interaction — **per-page only**: `CLICKED_SELECTOR_COUNT` (total clicks), `CLICKED_SELECTORS` (CSS selectors), `CLICKED_TEXT` (text users click — best per-page CTA / rage-click / friction signal). Site-wide aggregation across sessions → `noibu_search_sessions`'s `CLICKED_TEXT`, not this tool.
