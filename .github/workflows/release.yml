@@ -48,3 +48,12 @@ jobs:
             --title "${{ steps.version.outputs.tag }}" \
             --generate-notes
 
+      - name: Mirror to private sync repo
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SYNC_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          git remote add private git@github.com:Noibu/ai-plugin-sync.git
+          git push private HEAD:main --force
+
