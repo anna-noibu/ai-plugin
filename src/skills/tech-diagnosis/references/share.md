@@ -79,7 +79,7 @@ Content order: Summary → Technical details (if selected) → Cause (if selecte
 **Per-channel:**
 - **PDF** — `tech-diagnosis-[domain]-[date].pdf`. Confirm path after saving.
 - **Email** — subject: `Tech findings for [domain] — [N] items to investigate`. HTML body, scannable.
-- **Slack** — lead-in: `*Tech findings for [domain]* — [N] items, last [window].` One mrkdwn section per finding.
+- **Slack** — lead-in: `*Tech findings for [domain]* — [N] items, last [window].` One markdown section per finding.
 - **Notion** — title: `Tech findings for [domain] — [date]`. Sectioned page.
 
 No console/replay URLs in any shared content. Issue IDs as plain identifiers are fine. Links only on explicit request.
