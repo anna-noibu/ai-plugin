@@ -39,7 +39,7 @@ Send this message and **wait for reply before continuing:**
 
 **Outcomes:**
 - **Connect** → two steps are required:
-  1. Call `suggest_connectors` with UUID `fe983ccb-92c7-4df1-85af-b1c3340b89bb` and keyword `code` to handle the OAuth connection.
+  1. Check if GitHub Integration tools are available. If they are not, setup the GitHub Integration tools.
   2. Then tell them: "You also need to install the GitHub app to grant access to your repo — visit https://github.com/apps/claude-github-mcp-connector and install it on the account or organisation that owns your store's repo."
   3. Once they confirm the app is installed, ask: "What's the repo? (e.g. `mycompany/my-store`)" — **this is required, not optional**. Wait for reply. Save `status: connected` and `repo` to config.
 - **Skip for now** → save nothing. Will ask again next session.
@@ -62,7 +62,7 @@ First, silently check if Claude in Chrome tools are available. If they are, skip
 
 ## Confirm and proceed
 
-Once all steps are answered, **always write `~/.tech-diagnosis-config.json` using the shell tool — even if every answer was "skip for now".** The file must exist after setup so future sessions can read it. Use the Python merge pattern from SKILL.md → Configuration. Confirm in one sentence:
+Once all steps are answered, **always write `$HOME/.tech-diagnosis-config.json` using the shell tool — even if every answer was "skip for now".** The file must exist after setup so future sessions can read it. Use the Python merge pattern from SKILL.md → Configuration. Confirm in one sentence:
 
 > "All set — [one-line summary, e.g. 'Shopify and Chrome are connected, code repo skipped for now.']. Let's get into the diagnosis."
 
