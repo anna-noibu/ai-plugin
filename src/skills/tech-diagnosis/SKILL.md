@@ -1,461 +1,439 @@
 ---
 name: tech-diagnosis
-description: "Diagnose technical issues and Core Web Vital performance problems using Noibu data, and recommend a fix. Use when you want to know why an issue is happening, what's happening with an issue, what's causing errors, the root cause of poor performance on a page, how to fix a technical issue, why an error rate spiked, or where errors are concentrated."
+description: "Diagnose technical issues and Core Web Vital performance problems using Noibu data, and recommend a fix. Use when you want to know what's broken across the store, why an error is happening, what's causing errors, the root cause of poor page performance, how to fix a technical issue, why an error rate spiked, or where errors are concentrated."
 ---
 
 # Tech Diagnosis
 
-Diagnostic skill for a known tech signal — an error, a poor performance metric, or a behavioral drop suspected to have a tech cause. Produces a self-contained finding (Summary → Cause → Fix) the operator can act on, share, or escalate. Written for any audience, not just developers.
+- **Proactive** — no specific issue in hand. Scans for highest-value errors and CWV problems, ranks them, surfaces a prioritized list.
+- **Reactive** — a specific signal is already named. Produces a self-contained finding (Summary → Cause → Fix) the operator can act on, share, or escalate.
 
 ---
 
-## When this skill triggers
+## Setup (always runs first)
 
-**Direct invocations:** "why is LCP poor on checkout", "what's causing errors on Safari mobile", "diagnose this", "find the root cause", "what's behind this drop".
+1. **Noibu MCP** — confirm connected. If not, stop.
+2. **Domain** — UUID provided → use it. Name only → resolve via lookup. Nothing → list domains and ask. Capture the **platform field** (Shopify, Magento, etc.) for fix tailoring.
+3. **Mode + window** — detect mode (see below). Default window: 30 days. Override on request.
+4. **TodoList** — create with mode-appropriate tasks.
 
-**Handoff invocations** (from other analysis skills, often with structured context — domain, segment, page group, window, behavioral signal — already attached): "check for tech causes", "investigate the technical side", "are there errors affecting [segment]".
+## Mode detection
 
-**Do NOT trigger** on open-ended lookups ("is my LCP slow?", "how many errors do I have?"). Those are direct MCP queries.
-
----
-
-## Principles
-
-- **Each Noibu data source on its own terms.** Don't join error data to session/page-visit data client-side. Error tools surface impact natively; page-visit tools surface performance natively. No cross-table correlations.
-- **No claims of user impact without replay evidence.** "Present in 1,200 sessions", not "blocking 1,200 users".
-- **No revenue projections.** Impact is conveyed through occurrence count, impacted sessions, severity, page criticality, funnel stage — never revLost figures or computed dollar estimates.
-- **No console links or replay URLs in output** (chat or share). Operators may not have console access. Inline the data instead. On explicit request only, provide links.
-- **No raw data labels** (event types, insight tags, severity tiers without a labeled scale). Translate to natural language. Identifiers (variant IDs, issue IDs, file paths, CSS selectors, error messages, endpoints) stay in code style — those are actionable.
-- **Don't hardcode tool names or query shapes.** Describe intent; let the routing skill (auto-invoked) handle tool selection and field mapping. The Noibu MCP evolves.
-- **Suppress citation sections.** Never append a "Sources:" block — deliberate override of default citation behavior.
-- **Write for any audience.** Plain-language fix instructions; flag honestly when a fix needs developer expertise.
-- **Describe what to change, not how to navigate to it.** Platform admin UIs change; operators know their own admin.
-- **If the fix is a code change, render the code.** Verbatim when enrichment ran; generic platform-appropriate pattern when not. Never prose-only code fixes.
-- **Render output progressively.** Each step that produces operator-facing content shows it before moving on. Silent task completion is a failure mode.
-- **Pause for direction; don't auto-advance.** After Summary, Evidence, Cause, and Fix — the operator drives. Pose open-ended next-step questions, never binary "continue?" prompts.
-- **Pauses are conversational text, never AskUserQuestion modals.** Reserved for genuinely structured choices (connector setup; share destinations in the report widget).
-- **Propose a default and proceed.** When multiple causes/fixes exist, commit to the most likely, mention alternatives in passing. The operator can redirect with a sentence — don't enumerate as a picker.
-- **Don't narrate background operations. The first visible content after the operator's prompt is the diagnosis itself, never a setup paragraph.** Tool calls happen silently. Phase progression is signaled by the TodoList, not prose. Patterns to specifically avoid:
-  - "I've got the issue details..." / "I have X, Y, and Z" — narrating data acquisition.
-  - "Let me pull the trend..." / "Let me render the summary now" — narrating next action.
-  - "I'll fetch A and B in parallel" — narrating execution.
-  - "Acknowledged" / "Sounds good" / "Let me check X before doing Y" — preambles and announcements.
-  - "Working on it" / "One moment" / "Hold on" — filler.
-  - "I understand the issue, it's an X..." — narrating comprehension.
-
-  The first visible content is either (a) an immediate clarifying question when the prompt is ambiguous, or (b) the actual diagnosis output (Summary section, or the next pause-for-direction prompt). Nothing in between.
-- **Distinguish measured from reasoned.** Summary is grounded data. Cause and Fix are reasoned hypotheses — different runs may produce different reasoning. Surface this with a one-line transition note at the start of Cause (in chat) or as a static caveat at the top (in shares).
-- **Page criticality is internal ranking, not a labeled field.** Order: Checkout > Cart > PDP > Collection > Home > Other. Describe naturally in prose ("hits during checkout"), never as a categorical line.
-- **First-party vs third-party origin matters.** Third-party stack frames are flagged but not directly actionable by the operator — name the specific service when identifiable from the data. Common examples: marketing/email tools (Klaviyo, Mailchimp), cart/upsell apps (UpCart, Rebuy), loyalty/reviews (Hey Ethos, Yotpo, Loox), analytics/pixels (GTM, Meta Pixel, TikTok Pixel), payment gateways (Shop Pay, PayPal, Klarna, Afterpay), platform infrastructure (Shopify CDN), monitoring/recording wrappers (Sentry, rrweb). When the stack trace names a specific service, call it out by name rather than saying "a third-party script".
-- **Share artifacts are static documents.** Strip chat-only constructs ("let me know if", "want me to walk through"). Recipient can't follow up with the skill.
+- **Proactive** — no specific issue given. A domain name alone is proactive — it provides context, not a signal. Examples: "run tech diagnosis", "what's broken", "find tech issues", "scan for issues", "/tech-diagnosis for store.com".
+- **Share with vendor** — triggered when the message starts with "Share with vendor:". Skip setup, skip diagnosis. Go directly to Step P4's Share with vendor flow.
+- **Reactive** — a specific issue is named alongside a domain: a named error, metric + page ("LCP on checkout"), Noibu issue ID, specific page URL, or structured handoff with domain + signal + context. Also reactive when the operator asks to update connectors ("update my setup", "change my connectors", "reconfigure") — the connector check at the start of reactive mode handles this.
+- **Ambiguous** — ask: "Are you looking for a scan of what's broken across the store, or do you have a specific issue in mind?"
 
 ---
 
-## Process tracking
+## Rules
 
-**Creating the TodoList is the first action of Step 0** — before authentication, before any data calls. Required, not optional.
+- **No client-side data joins.** Each Noibu source on its own terms — no cross-table correlations.
+- **Don't overstate impact.** "Present in X sessions", not "blocking X users". No revenue projections or revLost figures.
+- **No console/replay links by default.** Inline the data; links only on explicit request.
+- **Don't hardcode tool names.** Describe intent; the routing skill handles selection.
+- **Suppress citation sections.**
+- **Plain language.** Translate Noibu labels; keep identifiers in code style. Describe what to change, not how to navigate.
+- **Proactive findings: call `show_widget` immediately.** Do not output findings as prose first. The tool call comes before any text output.
+- **Closing offer after the fix: call `show_widget` for the next-steps buttons.** Never render the closing offer as plain text or generate a custom single button. Load `show_widget` via ToolSearch and use the button template from Step 6.
+- **Live page inspection hierarchy.** Prefer Claude in Chrome. If Chrome isn't available, fall back to web_fetch using URLs constructed from the domain (already resolved in Setup) and affected paths from Noibu data — no need to ask the user. If neither is available, proceed with pattern-based recommendations only.
+- **First visible output is the result, never narration.**
+- **Never narrate scan criteria, filter logic, fallback decisions, or API internals.** This includes tool names, query parameters, API state values (PRIORITY, SPIKING, "new", "open"), error pool logic, or why one query returned nothing and another was tried. Fallbacks and retries happen silently.
+- **Never surface config state.** Whether `~/.tech-diagnosis-config.json` exists, is empty, or has specific values is never mentioned. Config reads and writes are silent. If nothing is saved, just ask for what's needed, save it on first use, and proceed — no admin questions about the config itself.
+- **If any enrichment endpoint errors, skip it immediately and proceed** — do not retry or wait for a timeout. Erroring enrichment (Noibu AI diagnosis, GitHub, Shopify) is treated the same as "not available".
+- **Live page inspection fallback is web_fetch, not WebSearch.** WebSearch is for looking up information, not fetching a specific store URL. Tool calls are silent. No preambles, filler, or "let me pull X". TodoList signals progress.
+- **Pause only at designated points.** Reactive mode: pause once after the fix recommendation. Proactive mode: pause after surfacing the findings list. Open-ended questions only; never binary prompts or AskUserQuestion modals.
+- **Propose a default and proceed.** Commit to the most likely cause/fix; mention alternatives in one sentence.
+- **Page criticality is internal only.** Checkout > Cart > PDP > Collection > Home > Other. Prose only, never a labeled field.
+- **Name third-party services specifically.** Stack trace names Klaviyo, GTM, Shop Pay → use that name.
 
-Base tasks:
-1. Understanding the issue
-2. Measure the impact
-3. Trace the cause
-4. Recommend a fix
+---
 
-Conditional tasks (added when opted into):
-- **Review evidence** — after Measure the impact, if the operator wants replays/heatmaps.
-- **Optional handoff** — at the end, if the operator wants to share or open tickets.
+# Proactive mode
+
+**The very first action in proactive mode — before the TodoList, before any queries — is to send this message:** "Scanning [domain] for the top technical errors and performance issues — this may take a moment."
+
+## Tasks
+1. Scan errors
+2. Scan performance
+3. Rank and surface findings
+4. Deep-dive (added when operator picks a finding)
 
 Mark `in_progress` on start, `completed` when done.
 
+## Step P1: Scan for errors
+
+Fetch a broad candidate pool, then classify post-fetch using the platform reference file.
+
+**Fetch candidates:** Use the priority errors tool with issue types PRIORITY, SPIKING, TOP_ISSUES in sequence. If fewer than 5 candidates total, supplement with the advanced error search tool using the same importance filter pattern (the Noibu routing skill has the correct field values). Limit: 20 from the fallback.
+
+**Apply 48-hour recency filter post-fetch** — regardless of which tool returned them, drop any candidate last seen more than 48 hours ago. This applies to priority tool results too. What remains is the active candidate pool.
+
+**Fetch detail:** For the top 10 remaining candidates by occurrence count, fetch stack trace and error type detail.
+
+**Classify using platform path patterns** — check `platform_overrides` in `~/.tech-diagnosis-config.json` first; if set, use those `merchant_paths` and `vendor_paths`. If not set, read `references/platforms/[platform].md` (use the platform field from Setup; fall back to `generic.md` for unknown platforms). Classify each candidate as:
+- **Fixable** — frames in merchant-owned code paths
+- **Platform** — frames only in platform infrastructure, or HTTP error types (403/429) with no JS stack trace
+- **Vendor** — frames in known third-party scripts
+
+Take top 2 fixable and top 2 vendor/platform candidates. Discard pure platform errors (no Fix or Share with vendor button needed for infrastructure issues the merchant can't touch).
+
+**Score:** `occurrences_last_7_days × criticality_weight`
+Weights (internal): Checkout=5, Cart=4, PDP=3, Collection=2, Home=1, Other=0.5
+
+The 48-hour recency filter ensures only currently active errors surface. Scoring on last 7 days (rather than 30-day total) further deprioritizes errors that spiked and then resolved.
+
+Mark "Scan errors" `completed`, "Scan performance" `in_progress`.
+
+## Step P2: Scan for performance
+
+Fetch page visit data with CWV (LCP, INP, CLS) across all page groups. Filter to pages where at least one metric is outside the Good band — see `references/performance.md` for thresholds.
+
+**Score:** `traffic_weight × severity_score`
+- traffic_weight — relative session volume, normalized (highest = 1.0)
+- severity_score — Poor=3pts, Needs Improvement=1pt per metric. Max 9pts.
+
+Take top 2. Capture: page/group, worst metric + p75 value, band, traffic volume.
+
+Mark "Scan performance" `completed`, "Rank and surface findings" `in_progress`.
+
+## Step P3: Rank and surface findings
+
+Rank findings (score × criticality weight, ties by page criticality).
+
+**Load `show_widget` via ToolSearch (`select:mcp__visualize__show_widget`) before calling it.** Then call `show_widget` with `title: "tech_findings"` and loading messages `["Scanning for errors...", "Checking performance...", "Ranking findings..."]`. Fill in the template below with real data. Always render both sections even if empty. Do not output findings as prose.
+
+Badge inline styles — pick one per card:
+- Active: `background:#FCEBEB;color:#A32D2D`
+- Re-emerging (was quiet, now ticking up): `background:#FAEEDA;color:#854F0B`
+- Improving (present but trending down): `background:#EAF3DE;color:#3B6D11`
+
+sendPrompt formats — use these exactly, no verbose context:
+- Fixable error Get fix button: `/tech-diagnosis fix #[issue-id] on [domain]`
+- Vendor error Share with vendor button: `/tech-diagnosis share with vendor #[issue-id] on [domain]`
+- Performance Fix button: `/tech-diagnosis fix [LCP|INP|CLS] on [page-url] for [domain]`
+
+```html
+<h2 style="position:absolute;width:1px;height:1px;overflow:hidden;">Tech findings for [domain] — last 30 days</h2>
+
+<div style="display:flex;flex-direction:column;gap:24px;padding:4px;">
+
+  <div>
+    <p style="font-size:11px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin:0 0 10px;">Issues you can fix</p>
+
+    [Repeat for each fixable (first-party) error, up to 2:]
+    <div style="border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;margin-bottom:10px;">
+      <div style="background:var(--color-background-secondary);padding:8px 20px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.06em;">[Error type — e.g. 403 Forbidden, JavaScript TypeError]</span>
+        <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px;[badge inline style]">[Active|Re-emerging|Improving]</span>
+      </div>
+      <div style="background:var(--color-background-primary);padding:20px;">
+        <p style="font-size:15px;font-weight:500;margin:0 0 8px;color:var(--color-text-primary);">[Plain-English title]</p>
+        <p style="font-size:14px;color:var(--color-text-secondary);line-height:1.6;margin:0 0 12px;">[1–2 sentences: what's wrong, where, who's affected]</p>
+        <p style="font-size:13px;color:var(--color-text-secondary);margin:0 0 16px;">[occurrence count — must be a number e.g. "412 occurrences · last seen Jun 4 · product pages · Chrome/macOS" — always include the count, never substitute status words like "Active" for it]</p>
+        <button onclick="sendPrompt('/tech-diagnosis fix #[issue-id] on [domain]')" style="padding:6px 14px;font-size:13px;font-weight:500;color:var(--color-text-primary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;cursor:pointer;">Get fix ↗</button>
+      </div>
+    </div>
+
+    [If no fixable errors:]
+    <p style="font-size:14px;color:var(--color-text-secondary);padding:16px 0;">No active errors found that you can fix directly.</p>
+
+  </div>
+
+  [If there are vendor errors, render a separate section:]
+  <div>
+    <p style="font-size:11px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin:0 0 10px;">Vendor issues</p>
+
+    [Repeat for each vendor (third-party) error, up to 2:]
+    <div style="border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;margin-bottom:10px;">
+      <div style="background:var(--color-background-secondary);padding:8px 20px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.06em;">[Vendor name] — [Error type]</span>
+        <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px;background:var(--color-background-tertiary);color:var(--color-text-tertiary);">Vendor</span>
+      </div>
+      <div style="background:var(--color-background-primary);padding:20px;">
+        <p style="font-size:15px;font-weight:500;margin:0 0 8px;color:var(--color-text-primary);">[Plain-English title]</p>
+        <p style="font-size:14px;color:var(--color-text-secondary);line-height:1.6;margin:0 0 12px;">[1–2 sentences: what's happening, which vendor, impact]</p>
+        <p style="font-size:13px;color:var(--color-text-secondary);margin:0 0 16px;">[occurrence count · vendor name · pages affected]</p>
+        <button onclick="sendPrompt('/tech-diagnosis share with vendor #[issue-id] on [domain]')" style="padding:6px 14px;font-size:13px;font-weight:500;color:var(--color-text-secondary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;cursor:pointer;">Share with vendor ↗</button>
+      </div>
+    </div>
+
+    [If no vendor errors:]
+    [Omit vendor section entirely — don't show an empty vendor section]
+  </div>
+
+  <div>
+    <p style="font-size:11px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin:0 0 10px;">Performance</p>
+
+    [Repeat for each performance finding, up to 2:]
+    <div style="border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;margin-bottom:10px;">
+      <div style="background:var(--color-background-secondary);padding:8px 20px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:12px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.06em;">[LCP|INP|CLS]</span>
+        <span style="font-size:11px;font-weight:500;padding:2px 8px;border-radius:4px;[badge inline style]">[Active|Re-emerging|Improving]</span>
+      </div>
+      <div style="background:var(--color-background-primary);padding:20px;">
+        <p style="font-size:15px;font-weight:500;margin:0 0 8px;color:var(--color-text-primary);">[Plain-English title]</p>
+        <p style="font-size:14px;color:var(--color-text-secondary);line-height:1.6;margin:0 0 12px;">[1–2 sentences: what's slow, where, how bad]</p>
+
+        [Benchmark bar — set flex values and marker position per metric:
+          LCP: green=25/yellow=15/red=60, scale 0–10s, labels "2.5s" "4.0s", marker=value/10*100%
+          INP: green=20/yellow=30/red=50, scale 0–1000ms, labels "200ms" "500ms", marker=value/1000*100%
+          CLS: green=10/yellow=15/red=25, scale 0–0.5, labels "0.1" "0.25", marker=value/0.5*100%
+          Cap marker at 95% to keep it visible]
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
+            <span style="font-size:20px;font-weight:500;color:var(--color-text-primary);min-width:48px;">[p75 value]</span>
+            <div style="flex:1;position:relative;height:24px;">
+              <div style="display:flex;height:100%;border-radius:5px;overflow:hidden;">
+                <div style="flex:[green-flex];background:#D1FAE5;display:flex;align-items:center;justify-content:center;"><span style="font-size:10px;color:#065F46;">✓</span></div>
+                <div style="width:1px;background:white;"></div>
+                <div style="flex:[yellow-flex];background:#FEF3C7;display:flex;align-items:center;justify-content:center;"><span style="font-size:10px;color:#92400E;">!</span></div>
+                <div style="width:1px;background:white;"></div>
+                <div style="flex:[red-flex];background:#FEE2E2;display:flex;align-items:center;justify-content:center;"><span style="font-size:10px;color:#991B1B;">✕</span></div>
+              </div>
+              <div style="position:absolute;top:-3px;left:[marker-position];transform:translateX(-50%);width:2.5px;height:30px;background:var(--color-text-primary);border-radius:2px;"></div>
+            </div>
+          </div>
+          <div style="display:flex;padding-left:60px;">
+            <div style="flex:[green-flex];"></div>
+            <span style="font-size:10px;color:var(--color-text-tertiary);transform:translateX(-50%);">[threshold-1]</span>
+            <div style="flex:[yellow-flex];"></div>
+            <span style="font-size:10px;color:var(--color-text-tertiary);transform:translateX(-50%);">[threshold-2]</span>
+            <div style="flex:[red-flex];"></div>
+          </div>
+        </div>
+
+        <p style="font-size:13px;color:var(--color-text-secondary);margin:0 0 16px;">[traffic volume · page group · device]</p>
+        <button onclick="sendPrompt('/tech-diagnosis fix [LCP|INP|CLS] on [page-url] for [domain]')" style="padding:6px 14px;font-size:13px;font-weight:500;color:var(--color-text-primary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:6px;cursor:pointer;">Get fix ↗</button>
+      </div>
+    </div>
+
+    [If no performance issues:]
+    <p style="font-size:14px;color:var(--color-text-secondary);padding:16px 0;">No significant performance issues found.</p>
+  </div>
+
+</div>
+```
+
+Mark "Rank and surface findings" `completed`. The Fix button handles routing to reactive mode — do not auto-advance.
+
+**Immediately after rendering the widget** (do not wait for a Fix button click), proceed to the scheduling offer below.
+
+## Step P3.5: Scheduling offer
+
+Call `list_scheduled_tasks` — if a scheduled tech scan already exists for this domain, skip this step entirely.
+
+Otherwise, load `show_widget` via ToolSearch and render the collapsed schedule widget (see `references/schedule-widget.md`). It appears automatically in a collapsed state — no conversational prompt needed. The operator expands it when they're ready.
+
+If yes, load `show_widget` via ToolSearch and call it with `title: "schedule_tech_scan"` and loading messages `["Setting up schedule..."]`. Pre-select weekly and Monday 9am as defaults.
+
+See `references/schedule-widget.md` for the full widget template, submit handling, and scheduled task prompt format.
+
+## Step P4: Hand off to reactive mode
+
+**Fix button** → add "Deep-dive" task, mark `in_progress`. Enter reactive flow — domain, platform, and window already resolved. Signal is a pass-through; follow the normal reactive flow from Step 2 onwards.
+
+**Share with vendor button** → skip the full diagnostic flow. Fetch the error detail, then generate a clear vendor-facing summary: what the error is, which pages it affects, occurrence count, browser/OS breakdown, and what the operator would like the vendor to investigate. Deliver it as a copyable block the operator can paste into a support ticket or email. Offer to send it via email or Slack if those connectors are available.
+
 ---
 
-## Step 0: Initialize
+# Reactive mode
 
-1. Create the TodoList with the four base tasks.
-2. Confirm the Noibu MCP is connected. If not, ask the operator to connect it and stop.
+## Connector check (runs once before diagnosis)
 
-Tool selection is handled by the auto-invoked Noibu routing skill — this skill describes what data it needs, the routing skill maps to current tool names.
+Read `~/.tech-diagnosis-config.json` silently. For each applicable connector (Shopify if on Shopify, GitHub, Chrome), check if it has a saved status (`connected`, `skipped`, or `pending_connection`). If all applicable connectors have a saved status, proceed directly — no setup, no mention of connectors.
 
-## Step 1: Resolve the domain
+If any connector has no saved status, or if mode is Setup (operator asked to reconfigure): read `references/first-run-setup.md` silently, then **stop and ask only about unset connectors before running any queries**. Do not call `suggest_connectors` for a connector that is already available in the current session. The first visible output must be the intro message. Do not fetch any data until setup is complete and config is written.
 
-- Domain UUID provided (direct or handoff) → use it.
-- Domain name only → resolve via name lookup; fall back to listing all domains and asking if no match.
-- Nothing provided → list domains and ask.
+## Tasks
+- Understanding the issue
+- Measure the impact
+- Trace the cause
+- Recommend a fix
+- Optional handoff *(conditional — if operator wants to share or ticket)*
 
-Capture the **platform field** from the domain response (Shopify, Magento, WooCommerce, BigCommerce, etc.) — used later for fix-instruction tailoring.
+Mark `in_progress` on start, `completed` when done.
 
-## Step 2: Determine the window
+## Step 1: Identify the signal
 
-Default: 30 days. Override on operator/handoff request. Construct ISO 8601 UTC start/end times.
-
-## Step 3: Identify the signal
-
-Translate the prompt into:
-- **Symptom** — error, performance metric, or behavioral drop with suspected tech cause
-- **Scope** — page, page group, segment, funnel stage, or "any"
-- **Context** — for handoffs, the upstream behavioral signal
-
-Examples:
+Translate the prompt into symptom, scope, and context (for handoffs). If the signal is clear, go straight to fetching — don't narrate it back. Examples:
 
 | Prompt | Signal |
 |---|---|
 | "Why is LCP poor on checkout?" | Performance — LCP — checkout |
 | "What's causing errors on Safari mobile?" | Errors — Safari mobile |
-| "Investigate the Safari PDP conversion drop" | Errors + performance — Safari mobile — PDPs — context: conversion drop |
-| "What's the worst LCP page?" | Performance — LCP — all pages, ranked |
 
-If ambiguous, ask one clarifying question. Mark "Understanding the issue" as `in_progress`.
+If ambiguous, ask one clarifying question. Mark "Understanding the issue" `in_progress`.
 
-## Step 4: Fetch focused data
+## Step 2: Fetch focused data
 
 Targeted queries only — no broad surveys.
-
-- **Error signals:** priority issues matching the scope; full detail (stack trace, top URLs, browser/OS distribution, funnel stage distribution, status, first/last seen) for top 1-2 issues.
-- **Performance signals:** Core Web Vitals at p75 for the affected URLs/page group, segmented by device and browser within the same query.
-- **Combined signals:** both, scoped to the relevant page/segment.
-
-Run in parallel where possible.
-
-Mark "Understanding the issue" as `completed`, "Measure the impact" as `in_progress`.
-
-## Step 5: Cross-reference, filter, render Summary
-
-### Post-processing
-
-For each error:
-- Flag third-party origin (stack frames in third-party domains) — surface, don't suppress.
-- Compute page criticality (internal ranking, not surfaced as label).
-- Read funnel stage from issue metadata (pre-computed by Noibu — no client-side join).
-- Cookie-consent observability check: if the issue fires on a consent endpoint (common examples: OneTrust, Cookiebot, TrustArc) and impacted sessions are very short with no further navigation, flag as a likely observability gap (the consent platform may be removing Noibu's script, ending the recording) rather than user impact. Name the specific consent platform when identifiable.
-
-For each performance metric, map p75 to:
-
-| Metric | Acceptable | Needs improvement | Poor |
-|---|---|---|---|
-| LCP | ≤ 2.5s | ≤ 4.0s | > 4.0s |
-| CLS | ≤ 0.1 | ≤ 0.25 | > 0.25 |
-| INP | ≤ 200ms | ≤ 500ms | > 500ms |
-| FCP | ≤ 1.8s | ≤ 3.0s | > 3.0s |
-| TTFB | ≤ 800ms | ≤ 1.8s | > 1.8s |
-
-Identify worst segment within the same query result.
-
-### Ranking
-
-Severity (critical first) → page criticality → impacted sessions (errors) or distance outside acceptable (performance). **Never rank by revenue projections.** Cap at 3-5 findings.
-
-### Render the Summary
-
-For each finding (ranking order), render a single **Summary** section containing:
-
-1. **Narrative paragraph** — 3-5 sentences in prose: what's broken, where (described naturally), how many shoppers affected and the trend, what they do when they hit it, origin, notable signals. No labeled fields, no bullet list, no raw tags.
-2. **Impacted-sessions widget** — one visualization that IS the summary: title ("Impacted sessions, last [window]"), prominent count with **% of total traffic** as a subtitle (e.g. "15 (0.05% of total)" — total store sessions in the same window as the denominator), plain-English week-over-week change (calibrated to volume — plain English for small numbers, percentages for high volume, never "WoW" acronym, never opaque "(3 vs 1)" shorthand), and a line/area chart. All from the same time series for the count and chart; total sessions pulled separately for the % calculation. Sized compactly so axis labels don't clip. No text duplicate below.
-3. **Top pages affected** — 3-5 row table with URL and impacted-session count. Lives only here, not duplicated in Technical details.
-
-Mark "Measure the impact" as `completed`.
-
-**Pause for direction.** Conversational text in the response stream — never an AskUserQuestion modal:
-
-> Let me know how you'd like to proceed — want to see evidence (replays or heatmaps), the technical details (issue type, stack trace, etc.), have me dig into the cause and fix, or pause here?
-
-This is the only place the Technical details option is offered explicitly. After this pause, the operator can still request it any time with phrases like "show me the technical details".
-
-## Step 6: Offer evidence (conditional task)
-
-Only if the operator chose evidence at Step 5's pause.
-
-Use whichever Noibu tools surface session replay data (errors and interaction issues) or heatmaps/clickmaps/scrollmaps (performance and click-pattern findings). Detect availability at runtime — don't assume specific tool names.
-
-- **Session replays** — describe 2-3 replays inline (timestamp, device, brief observed behavior). No shareable URLs by default; on-request only.
-- **Heatmaps** — render inline with a one-paragraph read of what stands out.
-
-If the relevant evidence tool isn't available for a finding type, say so and offer to continue with the data-level diagnosis.
-
-**Pause for direction.** Conversational text:
-
-> What next — see more replays or another segment, ask a question about what you just saw, dig into the cause and fix, or pause here?
-
-Mark "Review evidence" as `completed` if used; skip if not.
-
-## Step 7: Trace the cause
-
-Three sequential sub-steps before cause-tracing runs. Each prompt is **conversational text** in the response stream, and each **forces a pause** — the skill must wait for the operator's reply before moving on. Auto-advancing past any of these prompts is a failure mode.
-
-**7a and 7b are two SEPARATE sequential prompts. Do not combine them into one prompt.** Render 7a, stop, wait for the operator's reply. Only after they reply, render 7b. Combining them into a single ask with all options at once is a failure mode — the operator answers one question at a time, and the answer to 7a may inform 7b (e.g., if they skip both connectors, the URL paste in 7b becomes the only enrichment path remaining; if they connect GitHub but skip the URL paste, that's a deliberate "code yes, live pages no" choice the operator should make in two separate moments).
-
-### 7a. Connector preferences prompt (cached)
-
-Check `.tech-diagnosis-config.json`. For each applicable connector that's unset, ask once:
-
-- **GitHub** — always applicable.
-- **Platform connector** — based on the domain's platform field (e.g. Shopify → official Shopify MCP). For platforms without an available MCP, skip.
-
-Conversational prompt:
-
-> Before digging into the cause, connecting these would let me verify against actual data rather than infer:
-> - **GitHub** — if you use a Git workflow for your theme or codebase. Lets me check source files for line-level fix recommendations.
-> - **Shopify** — your store data: variants, products, app configurations, store settings. Lets me verify configuration hypotheses against actual data (e.g., is this variant out of stock, is this app misconfigured).
->
-> Want to connect either, both, or skip?
-
-**Stop. Wait for the operator's reply.** Don't proceed until they've answered. Three outcomes per connector, cached:
-
-- **Yes** — for GitHub, ask for `org/repo`; for platform, verify the MCP is connected (if not, surface the directory install URL and save `pending_connection`).
-- **Not now** — proceed without; ask again next run.
-- **Don't ask again** — save `skipped`; never prompt again for that connector.
-
-If all applicable connectors are already cached (connected or skipped), skip this prompt entirely.
-
-### 7b. Live page inspection prompt (per-session, no caching)
-
-Conversational prompt:
-
-> To inspect actual pages on your store as part of the diagnosis, paste your store's URL (e.g. `https://your-store.com`) so I can fetch affected pages and check the actual templates, scripts, and elements. Skip if you'd rather I reason from the Noibu data only.
-
-**Stop. Wait for the operator's reply.** Don't proceed until they've answered.
-
-If the operator pastes the URL with protocol, it satisfies the provenance constraint for `web_fetch` — all paths under that domain become reachable for the rest of the session. If they skip or decline, fall back to pattern-based recommendations for any finding that would have benefited from HTML inspection.
-
-This prompt runs **every session** (no caching) because the provenance constraint resets per session.
-
-### 7c. Cause-tracing enrichment
-
-Once both prompts above are resolved, run cause-tracing with whatever enrichments are available.
-
-**Foundation: Noibu's AI-generated issue diagnosis** (Title / What / Why / Impact + confidence). The "Why" content forms the basis of the "What's likely causing it" narrative — Noibu's AI has product-specific context the skill's LLM doesn't.
-
-**HTML inspection (`web_fetch`).** Applies whenever a finding could benefit from seeing the actual rendered page — not just LCP/CLS, but also JS errors on specific pages (to see scripts/elements in play), HTTP errors (to see the form/button that triggered the failing request), image errors (to confirm if the URL still 404s), and CWV findings generally.
-
-- Construct URL as `https://{domain}{path}` from the data (normalize relative vs absolute).
-- Skip silently if the operator didn't paste a URL in 7b; fall back to pattern-based recommendations gracefully.
-- Look for anti-patterns:
-  - **LCP** — likely LCP element's `loading`, `fetchpriority`, `width`/`height` attributes; preload hints; render-blocking scripts; third-party script count.
-  - **CLS** — images without dimensions; late-injected content; font-display strategy in inline CSS.
-  - **INP** — element selector if known; otherwise stay pattern-based (HTML inspection has limited value for runtime issues).
-  - **Errors** — context around the affected page: what scripts are loaded, what the affected element looks like, the form/button that triggers a failing request, whether a broken image URL is still 404'ing.
-
-**Source-code enrichment (GitHub).** If connected, search the repo for the element identified by HTML inspection; fetch with ~20 lines of context; identify specific lines.
-
-- SPA caveat: hashed class names produce multiple candidate files. Surface them and acknowledge the dev will need to pick the right one.
-
-**Platform-data enrichment.** If the platform MCP is connected (e.g. Shopify), query actual store data to **confirm or refute** hypotheses — variant settings, product status, app configurations, store settings. With confirmation, state the cause confidently. Without, stay in working-hypothesis framing.
-
-(Note: the Shopify MCP does not expose theme files. For theme source, GitHub is the path.)
-
-**Stack-frame tracing (for error findings).** First-party (theme/codebase) vs third-party — name the specific service when identifiable (e.g. monitoring wrappers affect data collection not the user experience; marketing-tool scripts affect that tool specifically; payment-gateway frames affect that gateway). Identify the function/operation running when the error fired.
-
-**Data-HTML mismatch is itself a finding.** If data says slow but HTML looks clean (no lazy hero, no missing dimensions, scripts deferred), cause is likely runtime (server response time, slow CDN, render-blocking JS execution).
-
-### Render the cause
-
-For each finding, output **"What's likely causing it"** inline.
-
-Open with the transition note (exactly once per finding):
-
-> *From here on, I'm reasoning over the data rather than reporting it. The cause and fix below are my best read of what it suggests — treat them as a working hypothesis, not a verdict, and use your judgment.*
-
-If multiple causes are plausible, list them briefly ranked by likelihood, then commit to walking through the primary fix next — don't render as a picker:
-
-> Two possibilities, in order of likelihood: 1. [...]. 2. [...]. I'll walk through the fix for #1 next. Let me know if you'd rather start with #2.
-
-Mark "Trace the cause" as `completed`.
-
-## Step 8: Recommend a fix
-
-Render the **"How to fix it"** section for the fix in focus (primary, or the alternative the operator chose).
-
-### Fix authoring
-
-- **Name the change, not the navigation.** Specific file, attribute, setting, variant, or value. No admin-UI walkthroughs.
-- **Always show code for code-based fixes:**
-  - With enrichment → verbatim "before" from the fetched HTML/template + copy-paste "after".
-  - Without enrichment → generic platform-appropriate pattern (Shopify Liquid, Magento template, WooCommerce PHP, generic HTML/JS).
-  - Never prose-only descriptions of code changes.
-- **For configuration fixes** (inventory settings, payment toggles, app configs) — name the specific setting and the value it should have.
-- **Risk level** (low / medium / high) + "test on a preview before publishing" note. Calibrate risk to the change.
-- **When a fix needs developer expertise**, say so plainly — don't pretend a complex change is self-serviceable. The technical details (available on request or in shares) are the handoff package.
-- **Single fix at a time.** If alternatives exist, close with a one-line reference:
-
-> If this doesn't resolve it, the alternative is [one-sentence summary]. Let me know if you want me to walk through that fix.
-
-If source enrichment identified a specific file/line, mention it inline.
-
-### Closing offer (conversational text, never a modal)
-
-> Let me know if you'd like to walk through the alternative fix, see the technical details, share this with someone, or open a ticket. Otherwise, we're done here.
-
-Mark "Recommend a fix" as `completed`.
-
-### Per-finding output structure (reference)
+- **Errors** — priority issues matching scope; full detail for top 1–2.
+- **Performance** — CWV at p75 for affected URLs/page group, segmented by device and browser.
+- **Combined** — both, scoped to the relevant page/segment.
+
+Run in parallel where possible. Mark "Understanding the issue" `completed`, "Measure the impact" `in_progress`.
+
+## Step 3: Cross-reference, filter, render Summary
+
+**Post-processing:**
+- Errors: flag third-party origin, compute page criticality, read funnel stage. Apply cookie-consent observability check. See `references/errors.md`.
+- Performance: map p75 to band, identify worst segment. See `references/performance.md`.
+- Ranking: severity → page criticality → impacted sessions or distance from threshold. Never by revenue. Cap at 3–5.
+
+**Render Summary** for each finding — in this order:
+1. Finding title as a markdown `##` heading
+2. Narrative paragraph (2–3 sentences): impact only — who's affected, how many, what they experience, trend. No technical identifiers, error codes, or endpoint names — those belong in Cause or Fix.
+3. Impacted-sessions widget: two metric cards only (session count + % of total traffic) + line/area chart. No trend card — the chart shows the trend.
+4. Top pages affected: 3–5 row table (URL + impacted sessions)
+
+Mark "Measure the impact" `completed`. Continue directly to cause tracing.
+
+## Step 4: Trace the cause
+
+- **Noibu AI diagnosis** — use the Why/Impact content as the basis for the cause narrative.
+- **Live page inspection** — use Chrome if available (navigate to affected pages, apply device emulation matching where the issue is worst — see `references/performance.md`). If Chrome isn't available, fall back to web_fetch using `https://{domain}{path}` constructed from the resolved domain and affected URLs from Noibu data. For INP without Chrome, fetch `CLICKED_SELECTORS_WITH_COUNTS` for the affected page from Noibu to identify likely slow interaction targets. If neither is available, proceed with pattern-based recommendations.
+- **GitHub enrichment** — search for the affected element, fetch ~20 lines context. SPA caveat: hashed class names may produce multiple candidate files — surface them.
+- **Platform enrichment** — query store data to confirm/refute hypotheses. With confirmation, state cause confidently; without, stay in working-hypothesis framing. Note: Shopify MCP doesn't expose theme files — use GitHub.
+
+See `references/errors.md` for error-specific guidance. See `references/performance.md` for performance-specific guidance.
+
+**Render cause:** open with "From here on, I'm reasoning over the data rather than reporting it…" If multiple causes, rank by likelihood and commit to the primary.
+
+Mark "Trace the cause" `completed`. Continue directly to fix recommendation.
+
+## Step 5: Closing offer
+
+Determine the fix internally (file, change, risk level, alternative) but **do not render it**. The fix is shown only when the operator clicks "Show me the fix".
+
+Load `show_widget` via ToolSearch and call it with `title: "next_steps"` and loading messages `["What's next..."]`. Nothing renders after the widget — no closing summary, no prose. Never mention connectors, grep, WAF, CDN, or enrichment steps.
+
+**Visibility rules:**
+- **"Apply the fix automatically"** — hide only if GitHub config status is `skipped`. Otherwise:
+  - **Disabled** (grey, no click) — only when GitHub IS connected but the fix isn't a code change in a specific file (e.g. vendor escalation, platform setting, app config) — there's no file to edit as a PR.
+  - **Active** — all other cases: GitHub not connected, no repo saved, or fix is a code change in a known file. Clicking handles whatever is missing — prompts to connect GitHub, asks for the repo, or creates the PR.
+- **"Show me the fix"** — always shown.
+- **"Open a ticket"** — hide only if all ticket connectors have been explicitly declined. Show if any connector is connected or unset (clicking triggers `suggest_connectors` if none are connected).
+- **"Share findings"** — always.
+- **"Done for now"** — always.
+
+```html
+<div style="border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);background:var(--color-background-primary);padding:20px;">
+  <p style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin:0 0 16px;">What would you like to do next?</p>
+  [If GitHub skipped → omit entirely]
+  [If GitHub IS connected AND fix is not a code change → show disabled container:]
+  <div style="display:block;width:100%;padding:12px 16px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);margin-bottom:8px;opacity:0.5;cursor:not-allowed;">
+    <p style="font-size:14px;font-weight:500;color:var(--color-text-tertiary);margin:0 0 4px;">Apply the fix automatically</p>
+    <p style="font-size:12px;color:var(--color-text-tertiary);margin:0;">The fix for this issue isn't a code change — there's no file to edit automatically.</p>
+  </div>
+  [All other cases → show active, with risk level as subtitle:]
+  [Label: "Apply the fix automatically" + if repo saved append " — [org/repo]"]
+  <div onclick="sendPrompt('Apply the fix automatically')" style="display:block;width:100%;padding:12px 16px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);cursor:pointer;margin-bottom:8px;">
+    <p style="font-size:14px;font-weight:500;color:var(--color-text-primary);margin:0 0 3px;">[Label] ↗</p>
+    <p style="font-size:12px;color:var(--color-text-tertiary);margin:0;">[low|medium|high] risk · test on preview before publishing</p>
+  </div>
+  <button onclick="sendPrompt('Show me the fix')" style="display:block;width:100%;text-align:left;padding:12px 16px;font-size:14px;font-weight:500;color:var(--color-text-primary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);cursor:pointer;margin-bottom:8px;">Show me the fix ↗</button>
+  [If ticket connectors not all skipped:]
+  [Label rules: 0 saved → "Open a ticket"; 1 saved → "Open a ticket in [connector] — [team]"; 2+ saved → "Open a ticket in [first connector] & [n] more"]
+  <button onclick="sendPrompt('Open a ticket')" style="display:block;width:100%;text-align:left;padding:12px 16px;font-size:14px;font-weight:500;color:var(--color-text-primary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);cursor:pointer;margin-bottom:8px;">[Label] ↗</button>
+  [Label rules: 0 saved → "Share findings"; 1 saved → "Share findings to [destination]"; 2+ saved → "Share findings to [first] & [n] more"]
+  <button onclick="sendPrompt('Share findings')" style="display:block;width:100%;text-align:left;padding:12px 16px;font-size:14px;font-weight:500;color:var(--color-text-primary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);cursor:pointer;margin-bottom:8px;">[Label] ↗</button>
+  <button onclick="sendPrompt('Done for now')" style="display:block;width:100%;text-align:left;padding:12px 16px;font-size:14px;color:var(--color-text-secondary);background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);cursor:pointer;">Done for now</button>
+</div>
+```
+
+**When "Show me the fix" is clicked** — render the fix section only (no repeating Summary or Cause). Then show the closing offer again so the operator can still act on it.
+
+Mark "Closing offer" `completed`.
+
+### Output structure
+
+Each section has one job — no repeating content from a prior section.
 
 ```
-## [Finding title — what's broken or slow, plain English]
+## [Finding title — plain English]
 
-### Summary  [Step 5]
-[3-5 sentence narrative paragraph]
-[Impacted-sessions widget: title + count (with % of total subtitle) + plain-English WoW change + line/area chart]
-**Top pages affected:**
-| URL | Impacted sessions |
-|---|---|
-| ... | ... |
+### Summary
+[2–3 sentences — impact only: who's affected, how many, what they experience, trend.
+No technical identifiers, error codes, or endpoint names — those belong in Cause or Fix.]
+[Impacted-sessions widget: two metric cards only (session count + % of total) + line/area chart. No trend card.]
+**Top pages affected:** 3–5 row table
 
-### What's likely causing it  [Step 7]
+### What's likely causing it
 *From here on, I'm reasoning over the data rather than reporting it...*
-[2-4 sentences explaining cause. If multiple causes, brief ranked list + commitment to primary.]
+[1–2 sentences — the hypothesis only. Don't restate what broke. Start from why.]
 
-### How to fix it  [Step 8]
-**Risk level:** [low / medium / high]
-[Code snippet or specific configuration change. Closing line about testing + alternative pointer if applicable.]
+[Closing offer widget — rendered here. Fix is NOT shown by default.]
 
-### Technical details  [Not in chat by default — see section below]
+--- shown only after "Show me the fix" is clicked ---
+
+### How to fix it
+[The specific change only. No restating the cause. Code or config, testing note, alternative pointer.]
+
+### Technical details  [on request or via share widget]
+See references/errors.md or references/performance.md for field list.
 ```
 
-### Technical details
+## Step 6: Handoff *(conditional)*
 
-Rendered only when:
-- The operator explicitly asks ("show me the technical details"), OR
-- The Technical details chip is selected in the share widget (Step 9).
+**Ask:** "Share as tickets or as a report to send someone?"
 
-The field list below is **exhaustive**. Render exactly these fields, in order, omitting any with no data. Render no other fields — not state, not endpoint, not funnel reach, not behavioral symptoms, not frustration signals, not sample URLs, not origin classification, not anything else the API response includes. Those belong elsewhere (the Summary) or nowhere.
+See `references/ticket.md` for the ticket flow. See `references/share.md` for the share widget and output formats.
 
-**For errors:**
-- **Issue ID** — plain identifier (e.g. `#445`).
-- **Issue type** — one descriptive line (e.g. "HTTP 422 Unprocessable Entity", "JavaScript TypeError").
-- **Error message** — exact, in code style.
-- **Error signature** — when available.
-- **Pattern** — short prose description Noibu provides for occurrence context.
-- **Stack trace** — top 3-5 frames, first-party vs third-party labeled.
-- **HTTP debug data** — request headers, response headers, request payload, response body. Only when the API populates them. May contain sensitive data.
-- **Browser impact** — horizontal bar chart, % of occurrences, top 5 with long-tail indicator.
-- **OS impact** — same format.
-- **Browser version impact** — only when one version concentrates ≥30% of occurrences.
-- **OS version impact** — only when one version concentrates ≥30% of occurrences.
-- **File/line** — only when source enrichment ran.
-
-**For performance:**
-- **Score** — one combined line: `[Metric] p75 [value] — [band]`.
-- **Sub-metric breakdown** — when available.
-- **Affected element** — CSS selector from HTML inspection.
-- **Detected anti-pattern** — specific pattern found in HTML.
-- **Browser impact** — when applicable.
-- **OS impact** — when applicable.
-- **File/line** — only when source enrichment ran.
-
-**Hard rules — no exceptions:**
-
-- Omit fields with no data. No "Not applicable", "—", "None", or placeholder text.
-- No commentary or prose appended to or interleaved with the block. The block ends with the last data field, period.
-- No pause-for-direction questions inside or immediately after the block. If a pause is needed for the broader flow, it happens in the surrounding step, not attached to this block.
-
-## Step 9: Handoff (conditional task)
-
-Reached only if the operator chose to share/ticket from Step 8's closing offer.
-
-### First question (conversational)
-
-> Share as tickets for follow-up, or as a report to send someone?
-
-### Ticket path
-
-Full content always included (Summary + Technical details + Cause + Fix). No widget, no content selection.
-
-1. **Detect the connected ticket connector** (Linear / Jira / GitHub Issues / Notion task database).
-   - **One connected** → use it directly.
-   - **None connected** → use `suggest_connectors` to prompt installation.
-   - **Multiple connected** → conversational question: which one?
-2. **Ask for project/repo** if not cached. Save to config.
-3. **Create tickets** — one per finding:
-   - Title: `[severity] [summary] (affecting [segment])`.
-   - Body in markdown: Summary → Technical details → Cause → Fix.
-   - Priority mapping (where supported): critical → high; standard → medium; third-party-origin → default/low.
-   - Labels (only if pre-existing): `tech-diagnosis`, `error` or `performance`, severity, `noibu`.
-   - Assignee: unset unless operator specifies.
-4. **Surface ticket URLs** after creation. Report partial failures honestly.
-
-### Report path
-
-Render the **share-configuration widget** inline (custom HTML widget — not AskUserQuestion). Match the visual style of the store-pulse and find-opportunities scheduling widgets: rounded pill chips, soft fill on selected, consistent typography, the platform-icon-then-label pattern. Widget structure:
-
-- **Title:** "Share findings for issue #X"
-- **Subtitle:** "Pick a destination and what to include with the summary." — the Summary is implicitly always included; the subtitle makes that clear so no locked chip is needed.
-- **Destination chips** (multi-select; PDF pre-selected as default):
-  - PDF (saves to workspace) — always available.
-  - Email (Gmail draft) — only if connector connected.
-  - Slack — only if connector connected.
-  - Notion — only if connector connected.
-- **Include chips** (multi-select, all optional add-ons to the Summary):
-  - Cause — default on.
-  - Fix — default on.
-  - Technical details — default off.
-- **Submit** ("Generate report" or similar) fires `sendPrompt` with structured selections.
-
-If a chosen destination's connector isn't connected, surface the directory install URL inline rather than blocking — operator can install and resubmit.
-
-**Conversational follow-up** (after submit, for each selected destination that needs recipient details):
-- Email → "What email address?"
-- Slack → "Which channel?"
-- PDF → no follow-up; save and confirm path.
-- Notion → "Which page or database?"
-
-Multiple destinations are processed in parallel — generate the PDF, draft the email, post to Slack, etc. — and follow-up asks come as needed per destination.
-
-**Generate the share artifact** with the Summary always present plus any selected add-ons, in this order: Summary → Technical details → Cause → Fix.
-
-**Static-document rewrite required.** Strip all chat-only constructs:
-- No "let me know if" / "want me to walk through" hooks.
-- No pause-for-direction text.
-- Alternative-fix mentions become static framing ("If the primary fix doesn't resolve, the alternative is [X]") not conversational.
-- The reasoning-vs-measurement disclaimer, if included, becomes a single-line static caveat at the top.
-
-**Per-channel:**
-- **PDF** — `tech-diagnosis-[domain]-[date].pdf` in workspace. Confirm path.
-- **Email** — subject `Tech findings for [domain] — [N] items to investigate`. HTML body, scannable.
-- **Slack** — lead-in `*Tech findings for [domain]* — [N] items, last [window].` One mrkdwn section per finding.
-- **Notion** — title `Tech findings for [domain] — [date]`. Sectioned page.
-
-### No console/replay URLs in shared content (both paths)
-
-Same rule as in-chat. Issue IDs as plain identifiers are fine. On explicit operator request only, include a console or replay link.
-
-Mark "Optional handoff" as `completed`.
+Mark "Optional handoff" `completed`.
 
 ---
 
-## Configuration file
+## Configuration
 
-`.tech-diagnosis-config.json` in the workspace folder, read at the start of Step 7:
+`~/.tech-diagnosis-config.json` in the user's home directory — accessible from any Cowork session regardless of which folder is mounted or how the session was opened (deep links, scheduled tasks, direct invocation).
+
+**Always use the shell tool to read and write this file.** Never use the file read/write tools — those are workspace-relative and will fail in sessions without a mounted folder.
+
+- Read: `cat ~/.tech-diagnosis-config.json 2>/dev/null || echo '{}'`
+- Write: use Python to merge and write safely — never clobber existing keys:
+  ```
+  python3 -c "
+  import json, os
+  path = os.path.expanduser('~/.tech-diagnosis-config.json')
+  cfg = json.load(open(path)) if os.path.exists(path) else {}
+  cfg.update({...})  # merge new values
+  json.dump(cfg, open(path,'w'), indent=2)
+  "
+  ```
+
+**Write config immediately whenever any preference is confirmed** — do not defer to end of session. Triggers:
+- Connector setup complete (first-run-setup.md)
+- Ticket destination confirmed (first use or change)
+- Share destination or include selection confirmed (first use or change)
+- Schedule created (save scheduled task details)
+- Any explicit "update my setup" / "change my connectors" flow
+
+See `references/first-run-setup.md` for the guided setup flow.
 
 ```json
 {
-  "github": {
-    "status": "connected" | "skipped" | "pending_connection",
-    "repo": "org/repo"
+  "github": { "status": "connected|skipped|pending_connection", "repo": "org/repo" },
+  "shopify": { "status": "connected|skipped|pending_connection" },
+  "chrome_inspection": "skipped",
+  "platform_overrides": {
+    "merchant_paths": ["cdn.shopify.com/s/files/", "assets.mystore.com/"],
+    "vendor_paths": ["static.klaviyo.com/", "heyethos.com/"]
   },
-  "shopify": {
-    "status": "connected" | "skipped" | "pending_connection"
+  "tickets": {
+    "linear": { "team": "Issues Team", "project": "Tech Issues" },
+    "notion": { "destination": "Bug Tracker", "url": "https://notion.so/..." },
+    "jira": { "project": "TECH" },
+    "github_issues": { "repo": "org/repo" }
+  },
+  "share": {
+    "destinations": ["pdf", "slack"],
+    "include": ["cause", "fix"],
+    "slack_channel": "#tech-issues",
+    "email": "team@example.com",
+    "notion_page": "Tech findings"
   }
 }
 ```
 
-Platform-specific connectors keyed by platform name. Only consult the entry matching the current domain's platform. Skipped connectors are never prompted again.
-
----
-
-## Common pitfalls
-
-1. **Marking TodoList tasks completed without surfacing visible output.** Each step that produces operator-facing content must render it before moving on.
-2. **Rendering pauses as AskUserQuestion modals.** Conversational text only — except for connector setup and share destination/content chips.
-3. **Enumerating multiple options as a picker.** Propose a default, proceed, mention alternatives in one sentence.
-4. **Narrating background operations.** No "I've got X" / "I have Y" / "Let me pull Z" / "Let me render W" / "I'll fetch A and B in parallel" / "Acknowledged" / "Let me check X before Y" / "Working on it" / visible file reads. First visible content is the diagnosis itself, never a setup paragraph.
-5. **Echoing raw Noibu data labels.** Translate to natural language. Identifiers stay in code style — those are actionable.
-6. **Synthesizing reproduction recipes or admin-UI navigation.** Don't invent steps. Use what Noibu actually provides; describe what to change, not how to navigate to it.
-7. **Joining error data to session/page-visit data client-side.** Each data source on its own terms.
-8. **Surfacing revenue projections** (Noibu's revLost figures or computed sessions × RPS estimates).
-9. **Including console links or replay URLs** by default in any output. Operators may not have access. Inline the data.
-10. **Hardcoding tool names or query shapes.** Describe intent; the routing skill handles tool selection.
-11. **Describing code changes in prose without showing the code.** Always render the snippet.
-12. **Using "WoW" acronym or "(3 vs 1)" raw-counts shorthand.** Plain-English week-over-week, calibrated to volume.
-13. **Fetching URLs without provenance.** Ask for the protocol-prefixed domain in chat first.
-14. **Leaking chat-only constructs into shares.** Strip "let me know" / "want me to" / pause questions when rewriting for static documents.
-15. **Asking which ticket platform when only one is connected.** Use the connected one; only ask if multiple.
-16. **Pretending complex fixes are self-serviceable.** When developer expertise is needed, say so plainly.
+`platform_overrides` and `tickets` are optional. Operators can ask Claude to update any field in plain language — Claude will edit the file directly.
