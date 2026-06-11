@@ -3,10 +3,6 @@
     "noibu": {
       "type": "http",
       "url": "https://mcp.noibu.com/mcp"
-    },
-    "github": {
-      "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/"
     }
   }
 }
