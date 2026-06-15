@@ -33,7 +33,7 @@ If an error fires on a consent-related endpoint (OneTrust, Cookiebot, TrustArc) 
 
 ## Stack-frame classification
 
-Check `platform_overrides` in `~/.tech-diagnosis-config.json` first — if `merchant_paths` and `vendor_paths` are set, use those. If not, read the built-in platform reference file:
+Check `platform_overrides` in `$HOME/.tech-diagnosis-config.json` first — if `merchant_paths` and `vendor_paths` are set, use those. If not, read the built-in platform reference file:
 - Shopify → `references/platforms/shopify.md`
 - Magento → `references/platforms/magento.md`
 - WooCommerce → `references/platforms/woocommerce.md`

@@ -61,9 +61,12 @@ The widget renders **collapsed by default**. The operator clicks to expand when 
   <p class="slabel">Send to</p>
   <p style="font-size:12px;color:var(--color-text-tertiary);margin:0 0 10px;">At least one required. Only Email, Slack, and Notion — do not add any other options.</p>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;">
-    <button class="chip" onclick="toggleChip(this)" data-value="email"><i class="ti ti-mail" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Email</button>
-    <button class="chip" onclick="toggleChip(this)" data-value="slack"><i class="ti ti-brand-slack" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Slack</button>
-    <button class="chip" onclick="toggleChip(this)" data-value="notion"><i class="ti ti-brand-notion" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Notion</button>
+    [If Email connected:]   <button class="chip" onclick="toggleChip(this)" data-value="email"><i class="ti ti-mail" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Email</button>
+    [If Email not connected:] <button onclick="sendPrompt('Connect email so I can schedule the tech scan digest to it')" style="padding:6px 14px;font-size:13px;font-weight:500;border-radius:100px;border:1px dashed var(--color-border-tertiary);background:var(--color-background-primary);color:var(--color-text-tertiary);cursor:pointer;"><i class="ti ti-mail" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Email <span style="font-size:11px;">+ Connect</span></button>
+    [If Slack connected:]   <button class="chip" onclick="toggleChip(this)" data-value="slack"><i class="ti ti-brand-slack" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Slack</button>
+    [If Slack not connected:] <button onclick="sendPrompt('Connect Slack so I can schedule the tech scan digest to it')" style="padding:6px 14px;font-size:13px;font-weight:500;border-radius:100px;border:1px dashed var(--color-border-tertiary);background:var(--color-background-primary);color:var(--color-text-tertiary);cursor:pointer;"><i class="ti ti-brand-slack" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Slack <span style="font-size:11px;">+ Connect</span></button>
+    [If Notion connected:]  <button class="chip" onclick="toggleChip(this)" data-value="notion"><i class="ti ti-brand-notion" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Notion</button>
+    [If Notion not connected:] <button onclick="sendPrompt('Connect Notion so I can schedule the tech scan digest to it')" style="padding:6px 14px;font-size:13px;font-weight:500;border-radius:100px;border:1px dashed var(--color-border-tertiary);background:var(--color-background-primary);color:var(--color-text-tertiary);cursor:pointer;"><i class="ti ti-brand-notion" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Notion <span style="font-size:11px;">+ Connect</span></button>
   </div>
 
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;border-top:0.5px solid var(--color-border-tertiary);padding-top:16px;">
@@ -102,12 +105,9 @@ function submitSchedule(){
 
 ## On submit
 
-The widget renders once and is never reloaded. Connection is handled at submit time in chat, not in the widget. When the operator submits, for each chosen channel:
+Ask for any missing delivery details (email address, Slack channel, Notion page) if not already in config. Then create the scheduled task with `create_scheduled_task`. Task name: `tech-scan-[domain]`.
 
-1. **If its connector isn't connected**, connect it now: call `suggest_connectors` with the appropriate UUID (Slack: `597f662f-36de-437e-836e-5a81013cbfbe`; Notion: `69f3a300-cc60-48c4-b237-dfac56530dbf`; Email/Gmail: search registry for "gmail").
-2. **Ask for any missing delivery detail** not already in config — email address, Slack channel, or Notion page.
-
-Only once every chosen channel is connected and its delivery detail is known, create the scheduled task with `create_scheduled_task`. Task name: `tech-scan-[domain]`.
+If a "+ Connect" button is clicked: call `suggest_connectors` with the appropriate UUID (Slack: `597f662f-36de-437e-836e-5a81013cbfbe`; Notion: `69f3a300-cc60-48c4-b237-dfac56530dbf`; Email/Gmail: search registry for "gmail"). After connecting, re-render the widget with that connector unlocked.
 
 ## Scheduled task prompt
 
