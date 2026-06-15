@@ -2,7 +2,7 @@
 name: querying-noibu-data
 description: >
     Required reference for calling `noibu_*` tools — field and measure semantics,
-    query constraints (the `orderBy`-at-input-level requirement, row caps,
+    query constraints (the `orderBy` requirement, row caps,
     unique-measure rule), the `rationale` argument convention, and domain
     resolution. Also covers parsing of pasted `console.noibu.com` URLs and
     third-party integration management. Loads alongside topical Noibu skills
@@ -28,7 +28,7 @@ Three tools cover almost every analytics question. Prefer them in this order:
    revenue, cohorts, traffic sources, products). One row per session.
 3. **`noibu_get_page_visits`** — page-level aggregates. One row per page visit.
 
-Both query tools require `orderBy` at the `input` level — see **Query Constraints**.
+Both query tools require `orderBy` — see **Query Constraints**.
 
 **Top-level routing:**
 
@@ -149,7 +149,7 @@ every call.
 ## Query Constraints
 
 - Row caps: `noibu_search_sessions` returns up to 100 rows; `noibu_get_page_visits` up to 1500.
-- ⚠ `orderBy` is REQUIRED at the `input` level, NOT inside `queryInput`. Note: `measures`/`groupBy`/`filters` all live inside `queryInput` — only `orderBy` is hoisted to the input level. Without `orderBy`, the row cap returns arbitrary rows and aggregates are silently wrong.
+- ⚠ `orderBy` is REQUIRED. It lives inside `queryInput`, alongside `measures`/`groupBy`/`filters`/`limit`. Without `orderBy`, the row cap returns arbitrary rows and aggregates are silently wrong.
 - Each measure must be unique by (fieldName, measureFunc).
 - For time series: resolution options are MINUTE, HOUR, DAY, WEEK. Pick based on range: last 24h → HOUR, last 7d → DAY, last 90d → WEEK.
 - `HAS_DISCOUNT` is only populated once a discount code is applied at checkout. Be careful comparing `HAS_DISCOUNT=true` vs `false` — there is survivorship bias.

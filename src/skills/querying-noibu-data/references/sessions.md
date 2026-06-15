@@ -4,7 +4,7 @@ Read this reference when the user asks session-level questions: conversion rate,
 
 ## noibu_search_sessions
 
-Session-level analytics. One row per session. `orderBy` is REQUIRED at the `input` level. Use for:
+Session-level analytics. One row per session. `orderBy` is REQUIRED (inside `queryInput`). Use for:
 
 - Traffic analysis: sessions by UTM source/medium/campaign, referring URL, landing/exit URL
 - Conversion analysis: checkout completion rates, cart event counts, payment submissions
