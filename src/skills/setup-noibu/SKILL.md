@@ -11,29 +11,26 @@ You're running the Noibu onboarding flow for a customer who's getting set up. Wo
 
 ## Step 1 — Authenticate to Noibu
 
-Authentication to Noibu happens **only** through Claude's built-in connector system. Your single job in this step is to surface the official Connect button to the user and wait. You do not manage, construct, or reason about the authentication mechanics yourself.
+Authentication runs through the Noibu connector bundled with this plugin, which exposes its own sign-in tools. You don't build or reason about the sign-in mechanics yourself — those tools do. Your job is to start the flow, relay the link the user needs to open, and wait until a real Noibu tool call succeeds.
 
 **How to do it:**
 
 1. Attempt to call any lightweight Noibu tool (for example, resolving the store's domain). If it succeeds, the user is already connected — skip to Step 2.
-2. If the call fails with an authentication error, tell the user plainly:
-   > "I need to connect to your Noibu account first. Please use the Connect button to sign in."
-3. Surface the official Noibu connector using the connector registry. Search for the `suggest_connectors` tool in the `mcp-registry` server (load it via ToolSearch first if needed) and call it for Noibu. This renders an interactive Connect button that runs Claude's real connector OAuth flow.
-4. Wait. Do not proceed until a Noibu tool call succeeds. Re-test by calling a lightweight Noibu tool again.
+2. If it fails because the connector needs sign-in (the only Noibu tools available are its `authenticate` / `complete_authentication` tools, or the call returns an authentication error), start the flow by calling the Noibu connector's authenticate tool — `mcp__plugin_noibu_noibu__authenticate` (load it via ToolSearch first if it isn't already available). It returns an authorization link.
+3. Share that link with the user and ask them to open it and sign in:
+   > "I need to connect to your Noibu account. Please open this link to sign in: <link>"
+4. After they authorize:
+   - Usually the connection completes on its own and the full set of Noibu tools becomes available. Re-test by calling a lightweight Noibu tool.
+   - If their browser instead lands on a page that won't load (a `localhost` address), that's expected on a remote session — the link in the address bar is still valid. Ask them to copy that full URL and paste it back, then pass it to `mcp__plugin_noibu_noibu__complete_authentication` as `callback_url` to finish.
+5. Wait. Do not proceed until a Noibu tool call actually succeeds. Re-test by calling a lightweight Noibu tool again.
 
-### Absolute prohibitions — read before doing anything
+### Guardrails
 
-You MUST authenticate through Claude's native connector system and nothing else. The following are **strictly forbidden** in this skill, with no exceptions:
+- **Only ever use the authorization link returned by the authenticate tool.** Never hand-write, guess, or assemble a sign-in URL yourself — nothing containing `/authorize`, `response_type`, `client_id`, `code_challenge`, `redirect_uri`, `state`, or `scope`. If you catch yourself building one, stop and call `mcp__plugin_noibu_noibu__authenticate` instead, then use exactly what it returns.
+- **Never hit `mcp.noibu.com/authorize` or any other sign-in endpoint directly** with a browser, curl, or fetch. The `authenticate` / `complete_authentication` tools are the only path.
+- The callback URL the user pastes back (step 4) is the one piece of input you accept from them, and only to feed straight into `complete_authentication`. Never ask them for a code, token, or password.
 
-- **Never construct, write out, print, or open an authorization URL yourself.** Do not build any URL containing `/authorize`, `response_type`, `client_id`, `code_challenge`, `redirect_uri`, `state`, or `scope`. This is never your job — the connector system builds and handles these internally.
-- **Never invent or use a callback / redirect URL** — especially not a `localhost` callback such as `http://localhost:PORT/callback`. If you find yourself producing a `redirect_uri`, stop immediately. That is always a bug.
-- **Never run a browser, curl, fetch, or any tool to hit `mcp.noibu.com/authorize`** or any other OAuth endpoint directly.
-- **Never instruct the user to paste a code, token, or URL** to complete sign-in. The real flow needs none of this.
-- **Never treat hand-built OAuth as a fallback** when the connector seems unavailable. There is no fallback. If the connector isn't available, the correct action is to surface `suggest_connectors` (or tell the user to add the Noibu connector in their Claude connector settings) and wait — not to improvise an auth URL.
-
-If at any point you are about to generate a URL with a `code_challenge` or a `redirect_uri`, that is a signal you have gone wrong. Stop, discard it, and fall back to `suggest_connectors`.
-
-The only correct outcome of Step 1 is: the user clicks the Connect button rendered by the connector system, completes sign-in, and a Noibu tool call subsequently succeeds.
+The only correct outcome of Step 1 is: the user opens the link from the authenticate tool, signs in, and a Noibu tool call subsequently succeeds.
 
 ---
 
