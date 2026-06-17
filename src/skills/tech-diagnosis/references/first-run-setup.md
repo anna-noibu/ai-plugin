@@ -33,15 +33,24 @@ Check if the Shopify MCP tools are available in the current session (they appear
 
 ## Step 2 — Code repository
 
-Send this message and **wait for reply before continuing:**
+**Before sending the message:** Check if GitHub tools are already available in the session.
+- If GitHub tools **are present**, include the warning variant below — the default connector is read-only and cannot apply fixes.
+- If GitHub tools **are not present**, use the standard variant.
 
-> "**Code repository** — if your store's theme or code lives in a Git repo (GitHub, GitLab, Bitbucket), connecting it lets me point to the specific file and line that needs changing instead of giving general advice. Connect, skip for now, or never ask?"
+**Standard variant** — send and wait for reply:
+
+> "**Code repository** — if your store's theme or code lives in a GitHub repo, connecting it lets me point to the specific file and line that needs changing instead of giving general advice. Connect, skip for now, or never ask?"
+
+**Warning variant** — send and wait for reply:
+
+> "**Code repository** — I can see you have a GitHub connector active, but the default GitHub integration is read-only and won't be able to apply fixes automatically. To get the full experience, you'll need to disconnect it and add the Noibu GitHub connector instead. Want to switch it over, skip for now, or never ask?"
 
 **Outcomes:**
-- **Connect** → two steps are required:
-  1. Check if GitHub Integration tools are available. If they are not, setup the GitHub Integration tools.
-  2. Then tell them: "You also need to install the GitHub app to grant access to your repo — visit https://github.com/apps/claude-github-mcp-connector and install it on the account or organisation that owns your store's repo."
-  3. Once they confirm the app is installed, ask: "What's the repo? (e.g. `mycompany/my-store`)" — **this is required, not optional**. Wait for reply. Save `status: connected` and `repo` to config.
+- **Connect / switch it over** → two steps are required, in order:
+  1. If the warning variant was shown (default connector already active), first tell them: "Go to **Settings → Connectors** and disconnect the existing GitHub connector first. Let me know once it's removed." Wait for confirmation before continuing.
+  2. Tell them: "Go to **Settings → Connectors → Add custom connector** and enter `http://api.githubcopilot.com/mcp` as the MCP address. Let me know once it's added."
+  3. Wait for confirmation, then tell them: "Now install the GitHub app to grant access to your repo — visit https://github.com/apps/claude-github-mcp-connector and install it on the account or organisation that owns your store's repo. Let me know once that's done."
+  4. Once they confirm both steps, ask: "What's the repo? (e.g. `mycompany/my-store`)" — **this is required, not optional**. Wait for reply. Save `status: connected` and `repo` to config.
 - **Skip for now** → save nothing. Will ask again next session.
 - **Never ask** → save `status: skipped`. Won't ask again.
 

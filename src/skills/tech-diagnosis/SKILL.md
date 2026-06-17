@@ -41,7 +41,7 @@ description: "Diagnose technical issues and Core Web Vital performance problems 
 - **Never narrate scan criteria, filter logic, fallback decisions, or API internals.** This includes tool names, query parameters, API state values (PRIORITY, SPIKING, "new", "open"), error pool logic, or why one query returned nothing and another was tried. Fallbacks and retries happen silently.
 - **Never surface config state.** Whether `$HOME/.tech-diagnosis-config.json` exists, is empty, or has specific values is never mentioned. Config reads and writes are silent. If nothing is saved, just ask for what's needed, save it on first use, and proceed — no admin questions about the config itself.
 - **If any enrichment endpoint errors, skip it immediately and proceed** — do not retry or wait for a timeout. Erroring enrichment (Noibu AI diagnosis, GitHub, Shopify) is treated the same as "not available".
-- **Live page inspection fallback is web_fetch, not WebSearch.** WebSearch is for looking up information, not fetching a specific store URL. Tool calls are silent. No preambles, filler, or "let me pull X". TodoList signals progress.
+- **Live page inspection fallback is web_fetch, not WebSearch.** WebSearch is for looking up information, not fetching a specific store URL. Tool calls are silent. No preambles, filler, or "let me pull X". TodoList signals progress. After fetching, extract only `<script>` `src` and `crossorigin` attributes — discard the full page HTML immediately.
 - **Pause only at designated points.** Reactive mode: pause once after the fix recommendation. Proactive mode: pause after surfacing the findings list. Open-ended questions only; never binary prompts or AskUserQuestion modals.
 - **Propose a default and proceed.** Commit to the most likely cause/fix; mention alternatives in one sentence.
 - **Page criticality is internal only.** Checkout > Cart > PDP > Collection > Home > Other. Prose only, never a labeled field.
@@ -292,7 +292,7 @@ Mark "Measure the impact" `completed`. Continue directly to cause tracing.
 ## Step 4: Trace the cause
 
 - **Noibu AI diagnosis** — use the Why/Impact content as the basis for the cause narrative.
-- **Live page inspection** — use Chrome if available (navigate to affected pages, apply device emulation matching where the issue is worst — see `references/performance.md`). If Chrome isn't available, fall back to web_fetch using `https://{domain}{path}` constructed from the resolved domain and affected URLs from Noibu data. For INP without Chrome, fetch `CLICKED_SELECTORS_WITH_COUNTS` for the affected page from Noibu to identify likely slow interaction targets. If neither is available, proceed with pattern-based recommendations.
+- **Live page inspection** — use Chrome if available (navigate to affected pages, apply device emulation matching where the issue is worst — see `references/performance.md`). If Chrome isn't available, fall back to web_fetch using `https://{domain}{path}` constructed from the resolved domain and affected URLs from Noibu data. After fetching, extract only `<script>` `src` and `crossorigin` attributes — do not retain the full page HTML in context. For INP without Chrome, fetch `CLICKED_SELECTORS_WITH_COUNTS` for the affected page from Noibu to identify likely slow interaction targets. If neither is available, proceed with pattern-based recommendations.
 - **GitHub enrichment** — search for the affected element, fetch ~20 lines context. SPA caveat: hashed class names may produce multiple candidate files — surface them.
 - **Platform enrichment** — query store data to confirm/refute hypotheses. With confirmation, state cause confidently; without, stay in working-hypothesis framing. Note: Shopify MCP doesn't expose theme files — use GitHub.
 
@@ -386,16 +386,16 @@ Mark "Optional handoff" `completed`.
 
 ## Configuration
 
-`$HOME/.tech-diagnosis-config.json` in the user's home directory — accessible from any Cowork session regardless of which folder is mounted or how the session was opened (deep links, scheduled tasks, direct invocation).
+`$HOME/.tech-diagnosis-config.json` — `$HOME` is a standard environment variable that works on Mac, Linux, and Windows. Accessible from any Cowork session regardless of which folder is mounted or how the session was opened (deep links, scheduled tasks, direct invocation).
 
 **Always use the shell tool to read and write this file.** Never use the file read/write tools — those are workspace-relative and will fail in sessions without a mounted folder.
 
-- Read: `cat $HOME/.tech-diagnosis-config.json 2>/dev/null || echo '{}'`
-- Write: use Python to merge and write safely — never clobber existing keys:
+- Read: `cat "$HOME/.tech-diagnosis-config.json" 2>/dev/null || echo '{}'`
+- Write (merge, never clobber existing keys):
   ```
   python3 -c "
   import json, os
-  path = os.path.expanduser('$HOME/.tech-diagnosis-config.json')
+  path = os.path.join(os.environ['HOME'], '.tech-diagnosis-config.json')
   cfg = json.load(open(path)) if os.path.exists(path) else {}
   cfg.update({...})  # merge new values
   json.dump(cfg, open(path,'w'), indent=2)
