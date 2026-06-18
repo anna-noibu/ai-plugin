@@ -28,6 +28,30 @@ Install directly from the marketplace — no download required:
 /reload-plugins
 ```
 
+## Releases & distribution
+
+This repo (`Noibu/ai-plugin`, public) is the source of truth and feeds two channels:
+
+- **Claude Code** — installs from this repo as a marketplace (`Noibu/ai-plugin`).
+- **Cowork** — served from the private mirror `Noibu/ai-plugin-sync`.
+
+Every push to `main` runs `.github/workflows/release.yml`, which:
+
+1. Bumps the patch version (from the latest `v*` git tag),
+2. Stamps it into `src/.claude-plugin/plugin.json` **and commits it back to `main`** (`[skip ci]`),
+3. Tags + creates a GitHub release with `noibu.zip`,
+4. Force-pushes `main` to the private `ai-plugin-sync` mirror.
+
+> **Why the commit-back matters:** clients read the `version` field from `plugin.json`
+> at repo `HEAD`, not from the release zip. Claude Code only auto-updates when that
+> string changes. If the bump isn't committed, the version stays frozen and **no client
+> ever updates** even though content moves. Do not remove the "Commit stamped version"
+> step.
+
+To distribute to all Claude Code users automatically, deploy a managed-settings.json
+via MDM with `extraKnownMarketplaces` (pointing at `Noibu/ai-plugin`, `autoUpdate: true`)
+and `enabledPlugins: { "noibu@noibu-plugins": true }`.
+
 ## How to develop
 
 1. Clone and install the plugin
