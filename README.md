@@ -38,15 +38,17 @@ This repo (`Noibu/ai-plugin`, public) is the source of truth and feeds two chann
 Every push to `main` runs `.github/workflows/release.yml`, which:
 
 1. Bumps the patch version (from the latest `v*` git tag),
-2. Stamps it into `src/.claude-plugin/plugin.json` **and commits it back to `main`** (`[skip ci]`),
-3. Tags + creates a GitHub release with `noibu.zip`,
+2. Stamps it into `noibu.zip` only (the committed `plugin.json` carries **no** version),
+3. Tags + creates a GitHub release with the versioned `noibu.zip`,
 4. Force-pushes `main` to the private `ai-plugin-sync` mirror.
 
-> **Why the commit-back matters:** clients read the `version` field from `plugin.json`
-> at repo `HEAD`, not from the release zip. Claude Code only auto-updates when that
-> string changes. If the bump isn't committed, the version stays frozen and **no client
-> ever updates** even though content moves. Do not remove the "Commit stamped version"
-> step.
+> **Versioning is by commit SHA, deliberately.** `main` is branch-protected, so the
+> workflow cannot push a version-bump commit back to it. Instead, `plugin.json` omits
+> the `version` field: the marketplace then versions the plugin by commit SHA, so **every
+> merge to `main` is a new version** and Claude Code auto-updates with no write to `main`.
+> The semver tag/release exists only for the downloadable `noibu.zip` (Claude Desktop +
+> the public directory). Do **not** add a `version` field back to `plugin.json` — it would
+> re-freeze marketplace updates.
 
 To distribute to all Claude Code users automatically, deploy a managed-settings.json
 via MDM with `extraKnownMarketplaces` (pointing at `Noibu/ai-plugin`, `autoUpdate: true`)
