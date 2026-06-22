@@ -713,26 +713,68 @@
   // duplicated in SKILL.md step 3 (inside the `mcp_tools` array passed to
   // `create_artifact`). If Noibu's MCP UUID ever rotates, BOTH sites must be updated
   // together — otherwise the dashboard will render but every data call silently fails.
+  // ===== Serialized request queue + rate-limit backoff =====
+  // A single dashboard render fans out ~9 Noibu queries. Firing them all at once (the
+  // various Promise.all sites below) overwhelms the Artifact MCP bridge's rate limiter,
+  // which returns "Artifact MCP rate limit exceeded". To stay under it we funnel EVERY
+  // call through a queue that runs one request at a time, spaced by SP_REQ_GAP_MS, and
+  // retry with exponential backoff whenever the limiter pushes back. The callers keep
+  // using Promise.all for readability — the queue transparently serializes the work.
+  const SP_REQ_GAP_MS = 150;   // minimum spacing between consecutive MCP calls
+  const SP_MAX_RETRIES = 5;    // retries on rate-limit before surfacing the error
+  let spQueueTail = Promise.resolve();
+  let spLastCallAt = 0;
+  const spSleep = (ms) => new Promise(r => setTimeout(r, ms));
+  const spIsRateLimit = (s) => /rate limit/i.test(s || '');
+
+  // Chain a thunk onto the queue so calls execute strictly one-after-another. The tail is
+  // kept alive past rejections so a single failure can't wedge the whole queue.
+  function spEnqueue(thunk) {
+    const run = spQueueTail.then(async () => {
+      const since = Date.now() - spLastCallAt;
+      if (since < SP_REQ_GAP_MS) await spSleep(SP_REQ_GAP_MS - since);
+      try { return await thunk(); }
+      finally { spLastCallAt = Date.now(); }
+    });
+    spQueueTail = run.then(() => {}, () => {});
+    return run;
+  }
+
   async function callNoibu(input) {
-    let result;
-    try {
-      result = await window.cowork.callMcpTool(
-        'mcp__a53d8516-38be-4a45-bddb-88be145c1e57__noibu_search_sessions',
-        { domainId: SP_CONFIG.domain.id, input, rationale: 'Store Pulse dashboard data fetch' }
-      );
-    } catch (err) {
-      // Network / transport failure — re-throw with a tagged message.
-      const e = new Error(`Noibu request failed: ${err?.message || err}`);
-      e.noibuKind = 'transport';
-      throw e;
+    const fire = () => window.cowork.callMcpTool(
+      'mcp__a53d8516-38be-4a45-bddb-88be145c1e57__noibu_search_sessions',
+      { domainId: SP_CONFIG.domain.id, input, rationale: 'Store Pulse dashboard data fetch' }
+    );
+
+    for (let attempt = 0; ; attempt++) {
+      let result;
+      try {
+        result = await spEnqueue(fire);
+      } catch (err) {
+        const m = err?.message || String(err);
+        // Transport-level rate limiting — back off and retry.
+        if (spIsRateLimit(m) && attempt < SP_MAX_RETRIES) {
+          await spSleep(600 * Math.pow(2, attempt)); // 600, 1200, 2400, 4800, 9600ms
+          continue;
+        }
+        const e = new Error(`Noibu request failed: ${m}`);
+        e.noibuKind = 'transport';
+        throw e;
+      }
+
+      const errMsg = extractNoibuError(result);
+      if (errMsg) {
+        // Tool-level rate limiting (error returned in the response body) — back off and retry.
+        if (spIsRateLimit(errMsg) && attempt < SP_MAX_RETRIES) {
+          await spSleep(600 * Math.pow(2, attempt));
+          continue;
+        }
+        const e = new Error(errMsg);
+        e.noibuKind = /auth|connect|sign|permission/i.test(errMsg) ? 'auth' : 'tool';
+        throw e;
+      }
+      return result;
     }
-    const errMsg = extractNoibuError(result);
-    if (errMsg) {
-      const e = new Error(errMsg);
-      e.noibuKind = /auth|connect|sign|permission/i.test(errMsg) ? 'auth' : 'tool';
-      throw e;
-    }
-    return result;
   }
 
   // Inspects an MCP tool result for any shape that means "no data because something went
@@ -818,35 +860,33 @@
   }
 
   async function fetchFunnel(window) {
-    const [depthR, pvR] = await Promise.all([
-      callNoibu({
-        periodOptions: { dateTimeRange: window },
-        queryInput: {
-          measures: [{ aggregate: { measureAlias: 'sessions', measureFunc: 'COUNT', target: { field: 'SESSION_ID' } } }],
-          groupBy: { fieldSegments: ['CONVERSION_FUNNEL_DEPTH'] },
-          orderBy: { measureAlias: 'sessions', direction: 'DESCENDING' }
-        }
-      }),
-      callNoibu({
-        periodOptions: { dateTimeRange: window },
-        queryInput: {
-          measures: [{
+    // Single query — sessions grouped by funnel depth PLUS a product-view-session count
+    // measure in the same call. Every session sits in exactly one depth bucket, so summing
+    // the filtered product-view measure across buckets equals the site-wide product-view
+    // session count. This folds the former separate product-view query into one request.
+    const depthR = await callNoibu({
+      periodOptions: { dateTimeRange: window },
+      queryInput: {
+        measures: [
+          { aggregate: { measureAlias: 'sessions', measureFunc: 'COUNT', target: { field: 'SESSION_ID' } } },
+          {
             aggregate: {
               measureAlias: 'pv', measureFunc: 'COUNT', target: { field: 'SESSION_ID' },
               filters: [{ fieldName: 'PRODUCT_VIEW_COUNT', operator: 'GREATER_THAN', comparisonValues: ['0'] }]
             }
-          }],
-          orderBy: { measureAlias: 'pv', direction: 'DESCENDING' }
-        }
-      })
-    ]);
+          }
+        ],
+        groupBy: { fieldSegments: ['CONVERSION_FUNNEL_DEPTH'] },
+        orderBy: { measureAlias: 'sessions', direction: 'DESCENDING' }
+      }
+    });
     const byDepth = {};
-    let total = 0;
+    let total = 0, pv = 0;
     noibuRecords(depthR).forEach(r => {
       byDepth[r.conversion_funnel_depth ?? 'null'] = r.sessions || 0;
       total += r.sessions || 0;
+      pv += parseFloat(r.pv) || 0;
     });
-    const pv = noibuRecords(pvR)[0]?.pv || 0;
     const atc = (byDepth[1] || 0) + (byDepth[2] || 0) + (byDepth[3] || 0) + (byDepth[4] || 0);
     const checkout = (byDepth[2] || 0) + (byDepth[3] || 0) + (byDepth[4] || 0);
     const complete = byDepth[4] || 0;
@@ -954,52 +994,59 @@
   };
 
   async function fetchPaid(periodWindow) {
-    // Each row always renders. UTM-attributed sessions/conversions/revenue come from a
-    // standard Noibu query (works for any merchant Noibu sees).
+    // One query for all three platforms instead of three. We group by UTM_SOURCE (filtered to
+    // the union of every platform's source patterns) and bucket each returned source into its
+    // platform client-side — the same approach the channel block uses. Cuts the paid block
+    // from three MCP calls to one.
     // NOTE: parameter is named `periodWindow` (not `window`) to avoid shadowing the global
     // `window` object — that bug previously killed window.cowork.callMcpTool inside this fn.
     const platforms = [
-      { platform: 'Google Ads', _toolkit: 'googleads', _utmSources: SP_PAID_UTM.googleads },
-      { platform: 'Facebook',   _toolkit: 'facebook',  _utmSources: SP_PAID_UTM.facebook  },
-      { platform: 'Instagram',  _toolkit: 'instagram', _utmSources: SP_PAID_UTM.instagram }
+      { platform: 'Google Ads', sessions: 0, conversions: 0, revenue: 0 },
+      { platform: 'Facebook',   sessions: 0, conversions: 0, revenue: 0 },
+      { platform: 'Instagram',  sessions: 0, conversions: 0, revenue: 0 }
     ];
+    const byName = { 'Google Ads': platforms[0], 'Facebook': platforms[1], 'Instagram': platforms[2] };
+    const classify = (src) => {
+      const s = (src || '').toLowerCase();
+      if (SP_PAID_UTM.googleads.includes(s)) return 'Google Ads';
+      if (SP_PAID_UTM.facebook.includes(s))  return 'Facebook';
+      if (SP_PAID_UTM.instagram.includes(s)) return 'Instagram';
+      return null;
+    };
+    const allSources = [...SP_PAID_UTM.googleads, ...SP_PAID_UTM.facebook, ...SP_PAID_UTM.instagram];
 
-    await Promise.all(platforms.map(async (p) => {
-      p.sessions = 0;
-      p.conversions = 0;
-      p.revenue = 0;
-
-      // 1) UTM attribution (always attempted — works regardless of platform-specific connector).
-      try {
-        const attribR = await callNoibu({
-          periodOptions: { dateTimeRange: periodWindow },
-          queryInput: {
-            measures: [
-              { aggregate: { measureAlias: 'sessions', measureFunc: 'COUNT', target: { field: 'SESSION_ID' } } },
-              {
-                aggregate: {
-                  measureAlias: 'conversions', measureFunc: 'COUNT', target: { field: 'SESSION_ID' },
-                  filters: [{ fieldName: 'CHECKOUT_COMPLETED', operator: 'EQUALS', comparisonValues: ['true'] }]
-                }
-              },
-              { aggregate: { measureAlias: 'revenue', measureFunc: 'SUM', target: { field: 'CHECKOUT_COMPLETE_TOTAL_VALUE' } } }
-            ],
-            filters: [
-              { fieldFilter: { fieldName: 'UTM_SOURCE', operator: 'IS_ANY_OF', comparisonValues: p._utmSources } }
-            ],
-            orderBy: { measureAlias: 'sessions', direction: 'DESCENDING' }
-          }
-        });
-        const rec = noibuRecords(attribR)[0] || {};
-        // Noibu returns numeric measures as strings — coerce so render-time .toFixed() works.
-        p.sessions = parseFloat(rec.sessions) || 0;
-        p.conversions = parseFloat(rec.conversions) || 0;
-        p.revenue = parseFloat(rec.revenue) || 0;
-      } catch (err) {
-        console.warn(`Paid attribution fetch failed for ${p.platform}`, err);
-      }
-
-    }));
+    try {
+      const r = await callNoibu({
+        periodOptions: { dateTimeRange: periodWindow },
+        queryInput: {
+          measures: [
+            { aggregate: { measureAlias: 'sessions', measureFunc: 'COUNT', target: { field: 'SESSION_ID' } } },
+            {
+              aggregate: {
+                measureAlias: 'conversions', measureFunc: 'COUNT', target: { field: 'SESSION_ID' },
+                filters: [{ fieldName: 'CHECKOUT_COMPLETED', operator: 'EQUALS', comparisonValues: ['true'] }]
+              }
+            },
+            { aggregate: { measureAlias: 'revenue', measureFunc: 'SUM', target: { field: 'CHECKOUT_COMPLETE_TOTAL_VALUE' } } }
+          ],
+          filters: [
+            { fieldFilter: { fieldName: 'UTM_SOURCE', operator: 'IS_ANY_OF', comparisonValues: allSources } }
+          ],
+          groupBy: { fieldSegments: ['UTM_SOURCE'] },
+          orderBy: { measureAlias: 'sessions', direction: 'DESCENDING' }
+        }
+      });
+      // Noibu returns numeric measures as strings — coerce so render-time .toFixed() works.
+      noibuRecords(r).forEach(rec => {
+        const name = classify(rec.utm_source);
+        if (!name) return;
+        byName[name].sessions    += parseFloat(rec.sessions) || 0;
+        byName[name].conversions += parseFloat(rec.conversions) || 0;
+        byName[name].revenue     += parseFloat(rec.revenue) || 0;
+      });
+    } catch (err) {
+      console.warn('Paid attribution batched fetch failed', err);
+    }
 
     return platforms;
   }
@@ -1120,6 +1167,9 @@
   }
 
   async function spRender(period) {
+    // Stamp this render. If a newer spRender starts before this one's MCP batch resolves,
+    // the token will have advanced and this run bails out instead of painting stale data.
+    const myToken = ++spRenderToken;
     const sel = document.querySelectorAll('.sp-selector button');
     sel.forEach(b => b.classList.toggle('active', b.dataset.period === period));
 
@@ -1132,6 +1182,7 @@
     try {
       d = await spFetchData(period);
     } catch (err) {
+      if (myToken !== spRenderToken) return;
       console.error('spFetchData failed', err);
       let msg;
       if (err?.noibuKind === 'auth') {
@@ -1146,6 +1197,10 @@
       document.getElementById('sp-period-context').innerHTML = msg;
       return;
     }
+
+    // A newer period was selected while this batch was in flight — discard these results
+    // so the dashboard never paints data for a period the user already moved off of.
+    if (myToken !== spRenderToken) return;
 
     document.getElementById('sp-period-context').innerHTML = d.label;
 
@@ -1471,8 +1526,29 @@
     return `${sessions} sessions in this period with a ${conv} conversion rate. AOV is ${aov} and revenue per session is ${rps}.`;
   }
 
+  // Debounced period switching. Clicking a period button used to fire a full MCP batch
+  // (~9 calls) immediately, so quickly toggling 24h/7d/30d stacked dozens of concurrent
+  // requests and tripped Noibu's rate limiter. Now a click only highlights the chosen
+  // button and shows "Loading…"; the actual fetch is scheduled after a short quiet window,
+  // so a burst of clicks collapses into a SINGLE render for whatever the user landed on.
+  // Combined with the spRenderToken staleness guard in spRender, any batch from a
+  // superseded click is also prevented from painting once it resolves.
+  let spPendingTimer = null;
+  let spRenderToken = 0;
+  const SP_DEBOUNCE_MS = 350;
+
   function spSetPeriod(period) {
-    spRender(period);
+    // Immediate visual feedback without waiting on the network.
+    document.querySelectorAll('.sp-selector button').forEach(b =>
+      b.classList.toggle('active', b.dataset.period === period));
+    const ctx = document.getElementById('sp-period-context');
+    if (ctx) ctx.innerHTML = 'Loading...';
+
+    if (spPendingTimer) clearTimeout(spPendingTimer);
+    spPendingTimer = setTimeout(() => {
+      spPendingTimer = null;
+      spRender(period);
+    }, SP_DEBOUNCE_MS);
   }
 
   // Initial render
