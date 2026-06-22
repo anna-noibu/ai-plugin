@@ -21,6 +21,9 @@ When stack trace origin is unclear:
 - **JS error types** (TypeError, ReferenceError, RangeError, etc.) — likely code-level, treat as fixable candidate
 - **HTTP error types** (403, 429, 404, 500) with no JS stack trace — likely infrastructure or platform, treat as not fixable by merchant code
 
+### "Script error" exclusion
+An error whose message/type is `Script error` is a cross-origin error with no usable detail — never fixable. If the origin can be identified as a known third-party domain, surface it in the vendor section. Otherwise, drop it.
+
 ### Frames on the store's own domain
 If a frame points to the store's own domain or a CDN that clearly serves the merchant's app (e.g. Vercel deployment URLs for a known merchant project), treat as merchant code and fixable.
 
