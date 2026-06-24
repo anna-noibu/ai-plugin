@@ -72,9 +72,11 @@ Fetch a broad candidate pool, then classify post-fetch using the platform refere
 **Fetch detail:** For the top 10 remaining candidates by occurrence count, fetch stack trace and error type detail.
 
 **Classify using platform path patterns** — check `platform_overrides` in `$HOME/.tech-diagnosis-config.json` first; if set, use those `merchant_paths` and `vendor_paths`. If not set, read `references/platforms/[platform].md` (use the platform field from Setup; fall back to `generic.md` for unknown platforms). Classify each candidate as:
-- **Fixable** — frames in merchant-owned code paths
-- **Platform** — frames only in platform infrastructure, or HTTP error types (403/429) with no JS stack trace
+- **Fixable** — frames in merchant-owned code paths, where the frame points to an actual `.js` file URL (not an inline page URL). Inline script frames — frames whose `sourceUrl` is a page URL rather than a `.js` file — do not count as merchant-owned regardless of domain.
+- **Platform** — frames only in platform infrastructure, or any 4XX HTTP error type (regardless of whether a JS stack trace is present — the HTTP error type overrides frame classification)
 - **Vendor** — frames in known third-party scripts
+
+**"Script error" exclusion:** if an error's message/type is `Script error` (a cross-origin error with no usable detail), it is never Fixable. If its origin can be identified as a known third-party domain, it may still surface in Vendor. Otherwise, drop it entirely.
 
 Take top 2 fixable and top 2 vendor/platform candidates. Discard pure platform errors (no Fix or Share with vendor button needed for infrastructure issues the merchant can't touch).
 
