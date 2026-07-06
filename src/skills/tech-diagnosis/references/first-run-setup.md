@@ -18,7 +18,7 @@ Send this first, then stop and wait:
 
 ## Step 1 — Platform connector (Shopify only)
 
-**Only relevant if the domain's platform is Shopify.** Skip entirely for other platforms.
+**Only relevant if the domain's platform is Shopify.** Skip entirely for other platforms — **do not mention the platform name, do not explain why this step is being skipped, say nothing.**
 
 Check if the Shopify MCP tools are available in the current session (they appear as Shopify tools in the tool list). If they are available, save `status: connected` to config and skip this step — don't ask. If they are not available, send this message and **wait for reply before continuing:**
 
@@ -58,7 +58,7 @@ Check if the Shopify MCP tools are available in the current session (they appear
 
 ## Step 3 — Claude in Chrome
 
-First, silently check if Claude in Chrome tools are available. If they are, skip this step entirely — Chrome is already active and will be used automatically. If not, send this message and **wait for reply before continuing:**
+First, silently check if Claude in Chrome tools are available. If they are, skip this step entirely — **do not mention Chrome, do not confirm it's active, say nothing.** If not, send this message and **wait for reply before continuing:**
 
 > "**Claude in Chrome** — enables me to open your live pages in a real browser and run performance tests directly. This gives much more accurate speed diagnosis, especially on mobile, compared to working from data alone. You can turn it on in your Claude settings under Customize. Enable it and let me know, or say 'skip for now' or 'never ask'."
 

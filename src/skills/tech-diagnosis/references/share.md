@@ -2,59 +2,11 @@
 
 Reached when the operator selects "Share findings" from the closing offer.
 
-Load `show_widget` via ToolSearch, then call it with `title: "share_findings"` and loading messages `["Setting up sharing options..."]`.
+Use `AskUserQuestion` with two questions each session — no config is saved:
 
-Before rendering, read the config for previously saved share preferences (`share.destinations`, `share.include`). Use as defaults — pre-select saved chips. If no saved preferences, default to PDF selected, Cause and Fix selected.
+**Question 1** — `question: "Where should these findings go?"`, `header: "Destination"`, `multiSelect: true`, options: PDF, Email, Slack, Notion.
 
-After submit, save selections back to config under `share`.
-
----
-
-## Widget
-
-Show all destinations as equal multi-select chips — no connected/unconnected distinction in the UI. Pre-select any previously saved destinations from config. Connection is handled after the operator submits, per destination.
-
-```html
-<style>
-.chip{padding:6px 14px;font-size:13px;font-weight:500;border-radius:100px;cursor:pointer;background:var(--color-background-primary) !important;border:1px solid var(--color-border-tertiary) !important;color:var(--color-text-secondary) !important;}
-.chip.on{background:#E6F1FB !important;border:1.5px solid #185FA5 !important;color:#0C447C !important;}
-.slabel{font-size:11px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.07em;margin:0 0 10px;}
-</style>
-
-<div style="border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);background:var(--color-background-primary);padding:24px;">
-  <p style="font-size:15px;font-weight:500;color:var(--color-text-primary);margin:0 0 4px;">Share findings for [domain]</p>
-  <p style="font-size:13px;color:var(--color-text-secondary);margin:0 0 24px;">Summary is always included. Pick a destination and any extras.</p>
-
-  <p class="slabel">Destination</p>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;">
-    <button class="chip on" onclick="toggleChip(this)" data-value="pdf"><i class="ti ti-file" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>PDF</button>
-    <button class="chip [on if previously selected]" onclick="toggleChip(this)" data-value="email"><i class="ti ti-mail" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Email</button>
-    <button class="chip [on if previously selected]" onclick="toggleChip(this)" data-value="slack"><i class="ti ti-brand-slack" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Slack</button>
-    <button class="chip [on if previously selected]" onclick="toggleChip(this)" data-value="notion"><i class="ti ti-brand-notion" style="font-size:14px;vertical-align:-1px;margin-right:4px;" aria-hidden="true"></i>Notion</button>
-  </div>
-
-  <p class="slabel">Include</p>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;">
-    <button class="chip on" onclick="toggleChip(this)" data-value="cause">Cause</button>
-    <button class="chip on" onclick="toggleChip(this)" data-value="fix">Fix</button>
-    <button class="chip [on if previously selected]" onclick="toggleChip(this)" data-value="technical">Technical details</button>
-  </div>
-
-  <div style="display:flex;justify-content:flex-end;align-items:center;gap:12px;border-top:0.5px solid var(--color-border-tertiary);padding-top:16px;">
-    <button onclick="submitShare()" style="padding:7px 20px;font-size:13px;font-weight:500;color:var(--color-text-primary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);cursor:pointer;">Share ↗</button>
-  </div>
-</div>
-
-<script>
-function toggleChip(el){el.classList.toggle('on');}
-function submitShare(){
-  const dest=[...document.querySelectorAll('[data-value="pdf"],[data-value="email"],[data-value="slack"],[data-value="notion"]')].filter(b=>b.classList.contains('on')).map(b=>b.dataset.value);
-  const inc=[...document.querySelectorAll('[data-value="cause"],[data-value="fix"],[data-value="technical"]')].filter(b=>b.classList.contains('on')).map(b=>b.dataset.value);
-  if(!dest.length){alert('Select at least one destination.');return;}
-  sendPrompt('Share: destinations='+dest.join(',')+' include='+inc.join(','));
-}
-</script>
-```
+**Question 2** — `question: "What should be included? (Summary is always included.)"`, `header: "Include"`, `multiSelect: true`, options: Cause (Recommended), Fix (Recommended), Technical details.
 
 **Per-destination follow-up** (check config for saved values first; collect all missing details before sending anything):
 - PDF → no follow-up; save and confirm path
