@@ -15,10 +15,9 @@ description: "Diagnose technical issues and Core Web Vital performance problems 
 1. **Noibu MCP** — confirm connected. If not, stop.
 2. **Domain** — UUID → use it. Name only → resolve. Nothing → list and ask. Capture **platform** (Shopify, Magento, etc.).
 3. **Mode + window** — detect mode (see below). Default window: 30 days.
-4. **Schedule check** — call `list_scheduled_tasks` silently. Store whether a recurring scan already exists for this domain as `has_schedule`. Used to set the schedule button in the widget.
-5. **TodoList** — create with mode-appropriate tasks.
+4. **TodoList** — create with mode-appropriate tasks.
 
-Config reads/writes are always silent. Never mention whether `$HOME/.tech-diagnosis-config.json` exists or what it contains. Ask for what's needed, save on first use, proceed.
+There is no config file. Connector status is detected at runtime by checking tool availability. Preferences are asked per session.
 
 ## Mode detection
 
@@ -83,7 +82,7 @@ Before extracting top 2: **deduplicate** — if two candidates share the same pr
 **Pass 2 — Vendor errors:**
 Use the same search — last 7 days, sorted by occurrence count, 30 per page. Apply 48h recency and >10 volume floor. For each survivor, fetch the full error detail individually and classify frames against the platform file. Extract top 2 vendor candidates by score.
 
-**Classification** — check `platform_overrides` in `$HOME/.tech-diagnosis-config.json` first. Otherwise use the platform file already loaded above.
+**Classification** — use the platform file already loaded above.
 - **Fixable** — at least one frame in merchant-owned code paths.
 - **Platform** — frames only in core platform infrastructure (Shopify CDN scripts, monorail, checkout, shopifysvc.com); or any HTTP error (4XX/5XX) with no JS stack trace; or any network/connection failure (status 0, ERR_NETWORK, request aborted) with no JS stack trace. Discarded regardless of endpoint. No exceptions.
 - **Telemetry** — frames in known analytics/pixel/beacon scripts (see platform file). Discard silently.
@@ -219,9 +218,8 @@ sendPrompt formats:
     <div style="border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:16px 20px;"><p style="font-size:14px;color:var(--color-text-secondary);margin:0;">No third-party app errors detected.</p></div>
   </div>
 
-  [If has_schedule is false:]
   <div style="border-top:0.5px solid var(--color-border-tertiary);padding-top:16px;">
-    <button onclick="sendPrompt('Schedule recurring tech scan for [domain]')" style="padding:9px 20px;font-size:14px;font-weight:500;color:var(--color-background-primary);background:var(--color-text-primary);border:0.5px solid var(--color-text-primary);border-radius:var(--border-radius-md);cursor:pointer;">Schedule recurring scan ↗</button>
+    <button onclick="sendPrompt('Schedule recurring tech scan for [domain]')" style="padding:9px 20px;font-size:14px;font-weight:500;color:var(--color-background-primary);background:var(--color-text-primary);border:0.5px solid var(--color-text-primary);border-radius:var(--border-radius-md);cursor:pointer;">Set up automations ↗</button>
   </div>
 
 </div>
@@ -250,7 +248,9 @@ Add "Deep-dive" task, mark `in_progress`. Enter reactive flow from Step 2 (domai
 
 Triggered by "Share with vendor" button or `/tech-diagnosis share with vendor #[id] on [domain]`.
 
-Fetch error detail. Generate a copyable vendor-facing summary (what, which pages, occurrence count, browser/OS breakdown). Offer to send via email or Slack if connectors available.
+Fetch error detail. Generate a copyable vendor-facing summary (what, which pages, occurrence count, browser/OS breakdown).
+
+**Do not use `references/share.md`, do not read or write the `share` config key, and do not ask the operator where to send it.** Just present the summary as copyable text, then ask in one line: "Want me to send this via email or Slack?" — but only if those connectors are already active in the session. If neither is connected, output the summary only. No preferences are saved.
 
 ---
 
@@ -274,7 +274,16 @@ Read `references/schedule-widget.md` and render it as a `show_widget`. No prose 
 
 ## Connector check (runs once before diagnosis)
 
-Read `$HOME/.tech-diagnosis-config.json` silently. If all applicable connectors (Shopify, GitHub, Chrome) have a saved status, proceed. If any are unset or operator asked to reconfigure: read `references/first-run-setup.md`, then ask only about unset connectors before running any queries.
+Silently check which tools are available in the current session: GitHub, Claude in Chrome, and (if platform is Shopify) Shopify.
+
+If any are missing, send **one combined message** and wait for a single reply before continuing — do not step through them one at a time:
+
+> "Before I start — connecting **[list of missing connectors]** would give more accurate results. [One-line benefit per connector, e.g. 'GitHub lets me point to the exact file and line to fix. Chrome lets me run live page tests.'] Want to connect any of these, or should I go ahead without them?"
+
+- If they want to connect something: call `suggest_connectors` for each (GitHub: `fe983ccb-92c7-4df1-85af-b1c3340b89bb`; Shopify: `80917cb7-3071-4fca-b053-a4262d356c60`; Chrome: direct them to Settings → Customize). Wait for confirmation, then proceed.
+- If they skip or say go ahead: proceed immediately, no follow-up.
+
+If all tools are already available, proceed immediately with no message.
 
 ## Tasks
 - Understanding the issue
@@ -327,8 +336,7 @@ See `references/errors.md` and `references/performance.md` for guidance.
 Determine the fix internally but **do not render it yet**. Commit to the most likely fix; note alternatives in one sentence. Load `show_widget` (`title: "next_steps"`, loading: `["What's next..."]`). Nothing renders after the widget.
 
 **Button visibility:**
-- **"Apply the fix automatically"** — hide if GitHub is `skipped`. Disabled (grey) if GitHub is connected but fix isn't a code change. Active in all other cases.
-- **"Apply the fix automatically"** — always shown. If GitHub not connected or skipped, clicking it triggers GitHub setup. If fix is not a code change, show disabled with explanation.
+- **"Apply the fix automatically"** — always shown. If GitHub tools are not active in the session, clicking it triggers GitHub setup. If fix is not a code change, show disabled with explanation.
 - **"Show me the fix"** — always.
 - **"Open a ticket"** — hide only if all ticket connectors explicitly declined.
 - **"Share findings"** — always.
@@ -341,7 +349,7 @@ Determine the fix internally but **do not render it yet**. Commit to the most li
     <p style="font-size:14px;font-weight:500;color:var(--color-text-tertiary);margin:0 0 4px;">Apply the fix automatically</p>
     <p style="font-size:12px;color:var(--color-text-tertiary);margin:0;">The fix for this issue isn't a code change — there's no file to edit automatically.</p>
   </div>
-  [All other cases → active. Label: "Apply the fix automatically" + if repo saved " — [org/repo]"]
+  [All other cases → active. Label: "Apply the fix automatically"]
   <div onclick="sendPrompt('Apply the fix automatically')" style="display:block;width:100%;padding:12px 16px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);cursor:pointer;margin-bottom:8px;">
     <p style="font-size:14px;font-weight:500;color:var(--color-text-primary);margin:0 0 3px;">[Label] ↗</p>
     <p style="font-size:12px;color:var(--color-text-tertiary);margin:0;">[low|medium|high] risk · test on preview before publishing</p>
@@ -389,45 +397,4 @@ See `references/ticket.md` for ticket flow. See `references/share.md` for share 
 
 ## Configuration
 
-`$HOME/.tech-diagnosis-config.json` — works on Mac, Linux, Windows. Always use the shell tool — never the file read/write tools (workspace-relative, will fail without a mounted folder).
-
-- **Read:** `cat "$HOME/.tech-diagnosis-config.json" 2>/dev/null || echo '{}'`
-- **Write (merge — never clobber):**
-  ```
-  python3 -c "
-  import json, os
-  path = os.path.join(os.environ['HOME'], '.tech-diagnosis-config.json')
-  cfg = json.load(open(path)) if os.path.exists(path) else {}
-  cfg.update({...})
-  json.dump(cfg, open(path,'w'), indent=2)
-  "
-  ```
-
-Write immediately when confirmed — don't defer. Triggers: connector setup, ticket destination, share destination, schedule created, reconfiguration.
-
-```json
-{
-  "github": { "status": "connected|skipped|pending_connection", "repo": "org/repo" },
-  "shopify": { "status": "connected|skipped|pending_connection" },
-  "chrome_inspection": "skipped",
-  "platform_overrides": {
-    "merchant_paths": ["cdn.shopify.com/s/files/", "assets.mystore.com/"],
-    "vendor_paths": ["static.klaviyo.com/", "heyethos.com/"]
-  },
-  "tickets": {
-    "linear": { "team": "Issues Team", "project": "Tech Issues" },
-    "notion": { "destination": "Bug Tracker", "url": "https://notion.so/..." },
-    "jira": { "project": "TECH" },
-    "github_issues": { "repo": "org/repo" }
-  },
-  "share": {
-    "destinations": ["pdf", "slack"],
-    "include": ["cause", "fix"],
-    "slack_channel": "#tech-issues",
-    "email": "team@example.com",
-    "notion_page": "Tech findings"
-  }
-}
-```
-
-`platform_overrides` and `tickets` are optional. Operators can update any field in plain language.
+There is no config file. All connector statuses are detected at runtime by checking tool availability. Ticket and share preferences are asked per session via `AskUserQuestion`. Scheduled task prompts capture repo and ticket details at setup time for automated runs.
