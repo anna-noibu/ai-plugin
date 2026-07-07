@@ -5,355 +5,106 @@ description: "Analyze checkout performance and health using Noibu data. Use when
 
 # Noibu Checkout Performance & Health Analysis
 
-This skill has two entry points. Read the user's prompt carefully before doing anything.
+Surfaces where shoppers drop off in checkout and what to do about it, as a ranked
+triage board built from Noibu session, value, and error data.
 
-## Quick answer — focused questions
+## How it works
 
-If the user asked a specific, focused question ("where are people dropping off in
-checkout?", "what payment methods are customers using?", "are there errors on my checkout pages?"):
+Run Setup, then pick one of two behaviors from the user's prompt:
 
-1. Run only the one or two queries needed to answer it.
-2. Give a short, direct answer — a few sentences and a small table if useful.
-3. Use `AskUserQuestion` — not prose — to offer the full analysis:
+- **Quick answer** (one focused question) → run 1–2 queries, answer directly, offer to go deeper.
+- **Full analysis** (broad request, bare invocation, or "yes" to the offer) → the four-step workflow below.
 
-   Question: "Want me to run a full checkout performance analysis?"
-   Options:
-    - "Yes — survey the full funnel, payment mix, delivery mix, and errors, then dig into anomalies"
-    - "No thanks"
+Full analysis flow: **(1)** broad overview (Q1–Q7, current + prior window) → **(2)** cross-reference + period-over-period → **(3)** pick the top 3 regressions → **(4)** run targeted follow-ups → render the board (one widget). Signals are flagged on **change vs the prior window**, not absolute level — see `references/queries.md` "Signal model".
 
-   If they select yes, proceed to Full analysis below.
+## Setup — before any query
+
+**Work quietly.** Don't narrate plumbing — resolving the domain, loading reference files, and reading the board format all happen silently, with no "let me…" commentary. The first thing the user sees is the Step 1 overview line ("Starting with a broad look…"); after that, narrate only real analytical progress (what the data shows), never file reads or tool setup.
+
+- **Resolve the domain first; keep the company id it returns.** If the user gave a domain (name or UUID), use it. If not, ask which one via `AskUserQuestion` populated from the user's domains — don't interrogate for anything else; take the default window and proceed. If the account has exactly one domain, skip the question and use it. Domain resolution returns a company id alongside the domain UUID; some tools (priority errors, data-connection checks) need that company id too — carry both.
+- **Load the Noibu context reference** (the `querying-noibu-data` skill/reference). It maps the role-based names used here ("session query tool", "funnel depth field", etc.) to the real Noibu tools/columns and documents query constraints. If it isn't available, discover tools and field names from the live Noibu API / tool schema instead — don't stop or guess.
+- **Confirm every field name by role before using it** (from the context reference, else the live schema). Steps below name fields by role, never by hard-coded column, so when the API changes only the lookup moves.
+- **Default analysis window:** the one in the context reference; if none, last 30 days.
+- **Call `list_scheduled_tasks` now** — note whether any task's prompt references this domain; this sets the action-bar Schedule button label later ("Schedule insights" vs "Edit scheduled insights") without blocking rendering.
+
+### Session tool — what it can group and filter by
+
+- **Group by:** device, country, browser, OS, UTM source/medium, landing URL, bounced, discount-applied, and **funnel depth** (how far the session got).
+- **Filter on:** device, country, bounced, checkout-completed, landing URL, UTM source.
+- **Funnel depth — confirm the exact field name; the prefix matters.** It *is* groupable (working name ~`CONVERSION_FUNNEL_DEPTH`), but near-variants are rejected. If a group-by is rejected, look up the exact name and retry; only fall back to per-stage count measures if it truly isn't available.
+- **Payment and delivery method are NOT groupable.** Attempt those slices only if the reference/schema exposes such a field; if not, skip them (see Principle 1).
+
+## Two principles that govern everything
+
+**Principle 1 — analyze what's present, never flag what's missing.** Which fields are populated varies by platform, integration, and account. An empty/null result is normal — that signal just isn't available for this domain, not broken.
+
+- Silently skip any empty/null slice and build from the data you *do* have. Omit its table entirely — no zero-rows, no "no data" placeholder.
+- Never create a finding, action, chip, or caveat about missing data, tracking, capture, or coverage. That's out of scope.
+- There's always a useful story in the present data (funnel progression, device/country splits, conversion, errors, populated value/method fields). Lead with it confidently, as if it's the full picture.
+
+**Principle 2 — trust cart → completion when intermediate events are uninstrumented.** If checkout-started and/or payment-submitted are near-zero while completions are healthy, those events aren't instrumented here. Don't treat the apparent "drops" as real — use cart → completion as the headline conversion metric and lean on segment splits (device, country, discount) for the drop story.
+
+**Exception to Principle 1 — the whole domain is empty.** If the *entire* dataset is near-zero (total sessions 0 or a handful), there's no story to tell. Say plainly the domain has essentially no traffic in this window and offer to widen the range or pick another domain. This is a "no data in the window" statement (fine to surface), not a tracking-coverage complaint (still out of scope).
+
+---
+
+## Quick answer
+
+A specific, focused question ("where do people drop off?", "what payment methods are used?", "errors on my checkout pages?"):
+
+1. Load `references/queries.md` and run only the 1–2 query specs needed (e.g. funnel → Q1, payment methods → Q3, errors → Q5).
+2. Answer in a few sentences + a small table if useful.
+3. Offer a deeper analysis; if yes, run Full analysis.
+
+Don't load the triage-board or scheduling references for a quick answer.
+
+## Investigate click
+
+A triage-board **Investigate** button arrives as a new chat prompt ("Investigate this checkout signal: …") via `sendPrompt` — handle it as a focused follow-up, not a re-render of the board. The follow-up specs are in `references/queries.md` (Step 4).
+
+- **Don't re-run the breakdown that built the card.** The Step 4 follow-up for this signal already ran to rank and headline it — reuse that evidence; only query again if the needed data wasn't pulled.
+- **Go one level deeper** for root cause: e.g. error detail on the affected page, or live page inspection — genuinely new work beyond the breakdown. A single Investigate may surface more than one cause, and of mixed type (e.g. a UX/form issue *plus* two priority errors, or a slow page).
+- **Route the what-next by cause type — decide this *after* diagnosing, never on the button click:**
+  - **UX / funnel / market / discount / ops causes** → write the what-next inline: one concrete, owner-routed step + the check that confirms resolution.
+  - **Priority error or performance/CWV causes** → if **tech-diagnosis** is available, hand each one off to it (it owns root-cause-to-fix, platform guidance, and the ticket/share flow). Emit one handoff per issue (carrying its own `humanId` or page), so multiple causes become multiple handoffs the user can pick from:
+    - Fixable error → `/tech-diagnosis fix #[humanId] on [domain]`
+    - Vendor/third-party error → `/tech-diagnosis share with vendor #[humanId] on [domain]`
+    - Performance → `/tech-diagnosis fix [LCP|INP|CLS] on [page-url] for [domain]`
+    - **If tech-diagnosis is NOT available, don't emit a dead `/tech-diagnosis …` command.** Handle the cause inline: name the issue (`humanId` / page), give a one-line likely root cause and a concrete next step. Don't mention or recommend installing another skill.
+- **Answer in chat with:** the *why* (the breakdown already gathered, ≤8 rows, plus any deeper root-cause finding) and, per cause, either the inline what-next or the tech-diagnosis handoff. Keep it tight; don't re-render the board.
 
 ## Full analysis
 
-If the user asked for a broad analysis or said yes to the quick-answer offer,
-run the two-part workflow below.
+A broad request, a bare invocation, or "yes" to the quick-answer offer. Run the whole workflow, then render the board in **one `show_widget`**:
 
----
-## Broad checkout overview
+1. **Broad overview** — fire Q1–Q7 for the current window plus the prior-window counterparts for the change-detection metrics (`queries.md`, Step 1).
+2. **Cross-reference + period-over-period** — compute current rates and their delta vs the prior window (Step 2).
+3. **Pick the top 3 regressions** to dig into, using the routing table (Step 3). The only non-regression card is a qualified active error (Q5).
+4. **Follow-up queries** — run only the follow-ups those signals call for (Step 4).
+5. **Render the board** — load `references/triage-board.md` and render it as a single `show_widget` (title: `"checkout_board"`): the Overview card (with its 'Save as artifact' button), then the ranked Priority cards (cap 3) with Investigate buttons, then the action bar (Download report + Schedule insights). Use the `list_scheduled_tasks` result from setup for the Schedule button label.
 
-Tell the user what you're about to query before starting — something like:
-"Starting with a broad look across your checkout
-to see funnel progression, payment methods, and delivery options."
-Fire all five queries in a single turn — do not wait for one before launching the next. Also load the Noibu context reference in this same turn if you haven't already.
+**After the board, add one short closing line** so the turn ends with visible text — a `show_widget` with no following text can be read as "no visible output" and trigger a duplicate re-render. Keep it to a single sentence naming what it is, e.g. "Here's your checkout triage board for [domain] — last 30 days vs. the prior 30." Do **not** recap the findings, list the priorities, or add a prose scheduling offer; the board and action bar carry those. The same goes for any turn that ends with a `show_widget` (the schedule card included): follow it with one short line.
 
-**Do not apply minimum session thresholds at this stage.**
+## Create live dashboard
 
-**Note on field discovery:** Use the Noibu context reference or the API schema to confirm field names — do not guess.
+Triggered by the Overview card's 'Save as artifact' button (arrives as "Save checkout overview as dashboard for [domain]").
 
-### Full funnel by depth
-Use the session query tool. Group by the field that represents how far each session
-progressed through the purchase funnel (funnel depth). Measure session count.
-Order by sessions descending.
+Read `references/triage-board.md` (already in context if full analysis just ran) and `references/live-dashboard.md`, then follow the instructions in live-dashboard.md to build and save the artifact.
 
-Covers all sessions. Shows how many reached each stage:
-0 = no action, 1 = ATC, 2 = checkout started, 3 = payment submitted, 4 = completed.
-Compute step-to-step drop-off rates in post-processing.
+## Export PDF
 
-### Cart & order value baseline
-Use the session query tool. Filter to sessions that reached at least the checkout
-start stage (funnel depth >= 2). Group by the field that indicates whether a
-discount was applied to the order. Measure session count, median completed order
-value, and median product quantity in the completed order. Order by sessions descending.
+Triggered by the action bar (arrives as "Export checkout analysis as PDF for [domain]").
 
-Scoping to depth >= 2 avoids null discount values on pre-checkout sessions.
-Gives discount rate among checkout-entering sessions, and whether discounted
-orders differ in size from full-price ones.
+Export-only — **do not re-run the analysis or any queries.** Reuse the results already in this conversation. Read `references/export-pdf.md` and follow the instructions there.
 
-### Payment method mix
-Use the session query tool. Filter to sessions where checkout was completed. Group
-by the field that lists payment method names used in a session (array join, limit
-20). Measure session count and median completed order value. Order by sessions
-descending.
+## Schedule report
 
-### Delivery method mix
-Use the session query tool. Filter to sessions where checkout was completed. Group
-by the field that lists delivery/shipping method names used in a session (array
-join, limit 20). Measure session count, median completed order value, and median
-shipping cost. Order by sessions descending.
+Triggered by the action bar (arrives as "Schedule checkout analysis for [domain]" or "Edit schedule for [domain]").
 
-### Priority errors on checkout pages
-Use the priority errors tool. Filter to priority-type issues on URLs containing
-"checkout". 
+Read `references/schedule-widget.md` and render it as a `show_widget`.
 
-Returns pre-indexed error data — much faster than a session aggregation query.
+## Ignore issue
 
----
+Triggered by an error card's Ignore link (arrives as "Ignore issue #[humanId] on [domain]").
 
-## Cross-referencing results
-
-After all five queries return, compute in post-processing:
-
-**Step-to-step drop-off rates** from full funnel by depth query:
-- ATC rate = depth-1+ sessions ÷ total sessions
-- Checkout start rate = depth-2+ ÷ total sessions
-- Checkout → payment rate = depth-3+ ÷ depth-2+
-- Payment → completion rate = depth-4 ÷ depth-3+
-- Overall checkout completion rate = depth-4 ÷ depth-2+
-
-Note: depth-4 exceeding depth-3 is expected — see express checkout note in data quality notes.
-
-**Cart profile** from cart & order value baseline query:
-- Discount rate = discounted sessions ÷ total depth-2+ sessions
-- Compare median order value for discounted vs. full-price orders
-- Median products per order as a proxy for basket complexity
-
----
-
-## Reviewing the overview — Finding what to dig into next
-
-Identify the 2–4 most interesting signals. Follow-up queries are not predetermined —
-they depend on what the data shows.
-
-| If you see this… | Consider this follow-up |
-|---|---|
-| High checkout → payment drop (depth 2→3) | Break down by device type — filter to checkout-entering sessions, group by device; mobile form friction is the most common explanation |
-| High payment → completion drop (depth 3→4) | Break down by payment method — filter to payment-submitted sessions, group by payment method names; completion rates often vary sharply by gateway |
-| ATC → checkout start rate unexpectedly low | Use the user journeys tool anchored to `/cart` to see what users do instead of proceeding |
-| Suspicion that a market blocks at checkout | Group by country filtered to cart-adding sessions — near-zero CVR in a high-traffic country usually means a shipping restriction or missing payment method |
-| Active priority errors returned | Use the error detail tool on the top 1–2 issues; include humanId and title so a developer can find them in the console |
-| Discount rate very high (>50% of checkout sessions) | Flag as a business observation — high promotion dependency is a margin risk; no Noibu follow-up needed |
-| A delivery method with unusually high median shipping cost | Cross-tab by country to check if it's concentrated in one market |
-
----
-
-### Transitioning to fuller analysis
-
-**This step is mandatory — always perform it without exception. Do not skip or summarize it away.**
-
-Write a short, plain-language message about the broad analysis using actual numbers: give a summary of the broad analysis, name the key findings and explain what you're investigating next and why. Don't say "Proceeding to Phase 2."
-
-Then either auto-run the follow-ups (preferred for broad, open-ended requests)
-or ask first if the proposed direction is a significant departure from what the user asked.
-
----
-
-## Deeper follow-up analysis
-
-Run only the follow-up queries identified above — not a fixed set.
-
-**Apply traffic thresholds, calibrated to the store's volume:**
-- High traffic (>500K sessions/month): threshold ~0.1–0.2% of total sessions
-- Mid-traffic (50K–500K): threshold ~0.3–0.5% of total
-- Lower traffic (<50K): keep thresholds very low or skip
-
-### Device breakdown for a funnel stage
-Use the session query tool when a step-to-step drop is concerning.
-
-Filter to sessions that reached at least checkout start (funnel depth >= 2). Group
-by device type. Measure session count, checkout start count, payment submission
-count, and checkout completion count. Order by sessions descending.
-
-Compute device-specific step rates in post-processing. A device where checkout →
-payment rate is 30%+ lower than others is a strong friction or JS error signal.
-
-### Country breakdown for funnel anomalies
-Use the session query tool when you suspect a market is blocked at checkout.
-
-Filter to sessions that added to cart (funnel depth >= 1). Group by country code
-(limit 25). Measure session count and conversion rate. Order by sessions descending.
-
-Near-zero CVR in a high-traffic market is almost always a shipping restriction
-or unsupported payment method. Flag as an ops issue, not a UX problem.
-
-### Payment method completion rate
-Use the session query tool when the payment → completion drop rate is high overall.
-
-Filter to sessions that reached payment submission (funnel depth >= 3). Group by
-payment method names (array join, limit 20). Measure session count and checkout
-completion count. Order by sessions descending.
-
-Compute completion rate per method. A method with high reach but low completion
-(e.g., card at 60% vs express checkout at 95%) points to a payment gateway issue.
-
-### Error detail for checkout issues
-Use when Q5 returned active priority errors.
-Use the error detail tool on the top 1–2 issues by session impact.
-Include humanId and title in the report so the developer can find them in the console.
-
-### Cart page exit analysis
-Use the user journeys tool when ATC → checkout start rate is unexpectedly low.
-
-Anchor on URLs starting with /cart, using loose mode. Retrieve forward paths only
-to a max depth of 5 steps.
-
-High forward-navigation back to product pages from the cart signals purchase
-uncertainty, not checkout friction. Exits to external URLs suggest distraction
-or price comparison shopping.
-
----
-
-## Rendering the final report
-
-**Guiding principle: insights first, data second.** The report must be scannable
-in 30 seconds. Every table is supporting evidence for a finding already named above.
-
----
-
-### Section 1 — Key Findings & Recommended Actions *(always first)*
-
-Write after both phases are complete. Number each pair.
-
-Lead with 3–5 finding + action pairs:
-
-> **1. Finding:** [specific step, device, or page] + [one concrete number] + [why it matters].
-> **Suggested Action:** [One specific, testable thing to do.]
-
-Rules:
-- Order by impact, not by how obvious the finding is.
-- Every finding must name a specific funnel step, device, payment method, or page.
-- Every action must be concrete enough to hand off.
-- Cap at 5. If more signals exist: "X more signals in the data below."
-
----
-
-### Section 2 — Supporting Data *(for validation and deeper reading)*
-
-**Checkout funnel** (all sessions)
-Columns: Stage | Sessions | % of All Sessions | Drop to Next Step
-- One callout naming the single largest drop and its rate.
-- Express checkout caveat if depth-4 > depth-3.
-
-**Cart & order profile** (checkout-entering sessions)
-Columns: Segment | Orders | Median Order Value | Median Products in Cart
-- Note if discounted orders are meaningfully larger or smaller than full-price.
-
-**Payment methods** (completed orders only)
-Columns: Payment Method | Orders | Median Order Value
-- Survivorship caveat: abandoned sessions' payment method is not captured.
-
-**Delivery methods** (completed orders only — online orders only)
-Columns: Delivery Method | Orders | Median Order Value | Median Shipping Cost
-- Exclude rows where median order value = $0 (in-store pickup / B2B / retail channels).
-- Flag non-English method names with very high order values as likely local-currency anomalies.
-
----
-
-### Section 3 — Checkout page errors
-
-**Priority errors**
-List each issue from Q5: humanId, title, error type.
-If none: "No active priority errors detected on checkout pages."
-
----
-
-### Section 4 — Evidence from deeper analysis *(one card per Phase 2 follow-up)*
-
-For each Phase 2 query, a tight two-line card:
-- **What the data showed:** specific numbers, one or two sentences max.
-- **Supports:** reference the numbered action from Section 1 (e.g., "→ supports Action 2").
-
-No raw data dumps. Cap tables at 8 rows.
-
----
-
-## Data quality notes
-
-- **Payment and delivery data reflects completed orders only.** Payment method
-  and delivery method fields are only populated on sessions where checkout was
-  completed. Never imply a payment method was rejected because of low volume —
-  it may simply not have been selected by completers.
-- **Express checkout inflates depth-4 vs depth-3.** Apple Pay, Shop Pay, and
-  similar flows bypass the payment information page. Depth-4 exceeding depth-3
-  is normal — always explain this rather than treating it as a data error.
-- **Discount survivorship bias.** Only sessions that reach checkout can have a
-  discount applied. The discount rate from Q2 is among checkout-entering sessions
-  only.
-- **Use the discount value recorded at checkout completion, not at checkout start.**
-  Many shoppers apply discount codes after initiating checkout. The checkout-start
-  discount fields significantly undercount discount usage — always use the
-  completion-time discount value field.
-
----
-
-## After the report: saving
-
-### Step 1 — Ask if they'd like to save the report and if so how
-
-Use `AskUserQuestion`:
-- **"Save as a live dashboard"** — a persistent artifact in Cowork that can
-  be reopened and refreshed with current data at any time
-- **"Save as a PDF"** — a static snapshot they can share or file away
-- **"No thanks"**
-
----
-
-**If they choose live dashboard:**
-
-Do NOT save the already-rendered `show_widget` HTML — that HTML has data baked
-in and will appear empty when the artifact is reopened.
-
-Instead, build a brand-new dynamic artifact using `create_artifact`. The artifact
-must fetch its own data every time it opens.
-
-**Important:** Use the exact field names that were confirmed to work during the
-Phase 1 queries earlier in this session — do not hardcode or guess field names.
-The correct names will already be known from the successful queries above.
-
-1. **Embed config at the top as JS constants:**
-   ```js
-   const DOMAIN_ID = "...";
-   const START_TIME = "...";
-   const END_TIME = "...";
-   ```
-
-2. **Section 1 (Key Findings & Recommended Actions) must be generated dynamically.**
-   Do not hardcode the findings from the in-session report into the artifact HTML.
-   Instead, after all live data has been fetched on page load, pass the results to
-   `window.cowork.askClaude()` to derive the findings fresh each time. This ensures
-   the key findings always reflect the current data, not a stale snapshot from when
-   the report was first run.
-
-3. **On page load**, call `window.cowork.callMcpTool()` for each of the five
-   Phase 1 queries (funnel depth, cart/order baseline, payment mix, delivery mix,
-   and priority errors), plus any Phase 2 queries that were run. Use the exact
-   same field names and parameters that produced results during the analysis —
-   copy them directly from the working queries above.
-
-   **Critical implementation details:**
-    - `callMcpTool()` requires the **fully-qualified** tool name. Use the exact
-      tool names that were resolved and confirmed to work during the analysis
-      session — do not hardcode or guess them.
-    - Parse records from the wrapped response:
-      ```js
-      function records(res) {
-        try {
-          let obj = res;
-          if (typeof res === "string") obj = JSON.parse(res);
-          if (obj && obj.content) {
-            const text = Array.isArray(obj.content)
-              ? obj.content[0].text : obj.content;
-            obj = typeof text === "string" ? JSON.parse(text) : text;
-          }
-          return obj.data.domain.explorationsQueryV2.records;
-        } catch(e) { return []; }
-      }
-      ```
-    - `window.cowork.askClaude()` returns a **response object**, not a plain string.
-      Always unwrap it before inserting into the DOM:
-      ```js
-      function parseClaudeText(res) {
-        if (!res) return '';
-        if (typeof res === 'string') return res;
-        if (Array.isArray(res.content) && res.content[0]?.text) return res.content[0].text;
-        if (typeof res.content === 'string') return res.content;
-        if (typeof res.text === 'string') return res.text;
-        if (typeof res.message === 'string') return res.message;
-        return '';
-      }
-      ```
-
-4. **After all fetches resolve**, call `window.cowork.askClaude()` for callouts.
-   Always store the result and pass it through `parseClaudeText()` before rendering.
-
-5. **Render** using the same visual structure as the in-session report.
-
-List all Noibu tool names used in the `mcp_tools` array of `create_artifact`.
-
----
-
-**If they choose PDF:**
-
-Before invoking the `pdf` skill, generate a print-optimized HTML version.
-Web fonts do not load reliably in the PDF renderer.
-
-Write the simplified HTML to a temp file, then pass it to the `pdf` skill.
+Call `noibu_update_issue` to set that issue's status to Ignored/Closed (confirm the exact status value from the tool schema), then confirm in one line (e.g. "Ignored #445 — it won't surface on future runs"). Don't re-render the board. If `noibu_update_issue` isn't available, say so briefly rather than failing.
