@@ -35,7 +35,7 @@ If a disqualified segment's session volume is above 1% of total, note it in a br
 
 ## Step 2 — Compute benchmark and find signals
 
-Compute the **site-wide CVR** (total sessions ÷ total purchases across all segments) — use as the benchmark throughout.
+Compute the **site-wide CVR** (total purchases ÷ total sessions across all segments) — use as the benchmark throughout.
 
 **Benchmarking rules — apply before selecting any signal:**
 - **Device:** Do not flag a DEVICE GAP just because mobile CVR ≠ desktop CVR — some gap is structurally expected. Only flag if the mobile/desktop CVR ratio has worsened week-over-week: compare week 1 (days 1–15) vs week 2 (days 16–30) of the window. If both devices declined equally the ratio holds and there is no signal. Only raise a DEVICE GAP card if the ratio worsened by ~10%+ (e.g. mobile/desktop CVR went from 0.80 to 0.72).
