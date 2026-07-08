@@ -120,7 +120,7 @@ When the user replies that they're done (for example "done", "installed it", "co
 
 1. Re-run the data check from Step 2 to see whether collection is active. Note that data can take **up to ~10 minutes** to start showing after install (and only once visitors hit the store), so an empty result right after setup is normal — not a sign anything is wrong.
 2. **If data is now coming through:** Celebrate in a warm, specific way — name the platform they deployed Noibu on — then suggest next steps:
-   > "You're all set! To see how your store is performing right now, try `/store-pulse` for a live health overview, or `/find-opportunities` to surface where you're leaving revenue on the table."
+   > "You're all set! To see how your store is performing right now, try `/store-pulse` for a live health overview."
 3. **If data isn't showing yet:** Treat this as expected, not a failure. Reassure them the install looks right, and set the expectation clearly:
    > "Your Noibu install looks good! Data can take up to about 10 minutes to start coming through — and it'll begin once visitors land on your store. Check back in a bit and reply here, and I'll confirm it's collecting. Then we can dig into your checkout analysis."
 
