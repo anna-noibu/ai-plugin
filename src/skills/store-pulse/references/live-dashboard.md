@@ -1153,6 +1153,14 @@ result as `html_path` to `create_artifact` (write it to a file first).
       const priorTotal = prior[0]?.count || 1;
       out.funnel = cur.map((step, i) => {
         const pctReach = (step.count / total) * 100;
+        if (i === 0) {
+          // Step 0 is the funnel baseline (100% reach by definition), so a
+          // reach-vs-baseline delta is structurally always 0. Show the entry-traffic
+          // trend instead: % change in raw session count vs the prior period. Rendered
+          // with a '%' unit below. Matches inline-snapshot.md's step-0 convention.
+          const pctChange = prior[0] ? ((total - priorTotal) / priorTotal) * 100 : null;
+          return { ...step, pctReach, pctDelta: pctChange };
+        }
         const priorPct = prior[i] ? (prior[i].count / priorTotal) * 100 : 0;
         return { ...step, pctReach, pctDelta: pctReach - priorPct };
       });
@@ -1345,19 +1353,19 @@ result as `html_path` to `create_artifact` (write it to a file first).
         return (n || 0).toLocaleString();
       };
       const fmtReach = (v) => v >= 10 ? v.toFixed(0) + '%' : (v >= 1 ? v.toFixed(1) + '%' : v.toFixed(2) + '%');
-      const fmtDelta = (v) => {
+      const fmtDelta = (v, unit) => {
         const a = Math.abs(v);
         if (a < 0.05) return { text: '&mdash;', cls: 'flat' };
         const arrow = v > 0 ? '&uarr;' : '&darr;';
         const decimals = a >= 10 ? 0 : (a >= 1 ? 1 : 2);
-        return { text: `${arrow}&nbsp;${a.toFixed(decimals)}pp`, cls: v > 0 ? 'up' : 'down' };
+        return { text: `${arrow}&nbsp;${a.toFixed(decimals)}${unit}`, cls: v > 0 ? 'up' : 'down' };
       };
 
       const tops = steps.map((_, i) => topPx(i));
 
       const headers = steps.map((step, i) => {
         const headlineValue = i === 0 ? fmtNum(step.count) + ' sessions' : fmtReach(step.pctReach);
-        const d = fmtDelta(step.pctDelta);
+        const d = fmtDelta(step.pctDelta, i === 0 ? '%' : 'pp');
         const deltaHTML = (step.pctDelta != null)
           ? `<span class="sp-funnel-delta ${d.cls}">${d.text}</span>`
           : '';
