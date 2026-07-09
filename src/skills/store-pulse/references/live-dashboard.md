@@ -1,48 +1,94 @@
+# Live Store Pulse Dashboard
+
+Build a persistent artifact using `mcp__cowork__create_artifact`. This replaces the old
+`scripts/render_dashboard.py` + `assets/dashboard.html` pair — the template now lives
+directly in this file, and substitution is a plain text replace you do yourself (two
+placeholders, no script needed).
+
+**One dashboard per domain.** Before creating, always check whether this domain already
+has one (see SKILL.md's "Save as artifact" flow) — don't create a second artifact for a
+domain that already has a live dashboard.
+
+**Artifact id and title are domain-derived, never fixed.** This is what lets multiple
+domains each have their own live dashboard side by side. Never hardcode
+`store-pulse-dashboard` as the id for a new artifact — that fixed id only exists on
+dashboards created before multi-domain support shipped; leave those alone (see
+SKILL.md Migration note).
+
+- **Id** — always fully domain-qualified, kebab-case: `store-pulse-[domain-with-dots-as-dashes]`,
+  e.g. `flyinmiata.com` → `store-pulse-flyinmiata-com`, `atari.com` → `store-pulse-atari-com`.
+  Ids need to be collision-proof up front (they're never renamed), so they always keep
+  the full domain including suffix, even when the title below drops it.
+- **Title** — defaults to `Store Pulse — [Label]`, where Label is the domain with its
+  suffix stripped and title-cased: `flyinmiata.com` → `Store Pulse — Flyinmiata`,
+  `atari.com` → `Store Pulse — Atari`. Cowork's sidebar title-cases and strips
+  punctuation from whatever title you pass — a raw domain like `atari.com` renders
+  there as the awkward "Atari Com". Dropping the suffix by default avoids that for the
+  common case (one domain per company).
+
+  **Only append the suffix** — as `Store Pulse — [Label] (.[suffix])`, e.g.
+  `Store Pulse — Atari (.com)` — when this domain's Label collides with another
+  *existing* Store Pulse dashboard's Label under a different suffix (e.g. `atari.com`
+  and `atari.ca` both have live dashboards). Before naming a new dashboard, call
+  `list_artifacts`, compute each existing Store Pulse dashboard's Label the same way
+  (domain minus everything from the first `.` onward), and check for a match. If you're
+  rebuilding an existing dashboard and a same-Label collision now exists that didn't
+  before, fix its title too as part of that rebuild — same self-healing pattern as the
+  `mcp_tools` resolution below, just for titles instead of tool names.
+
+**Probe before building.** Call the Noibu session-search tool once with a minimal query
+to confirm the exact tool name and response shape, same as Setup already does when
+resolving the tool name.
+
+**Do this silently.** Resolving the tool name, probing it, and substituting it into
+`__NOIBU_TOOL_NAME__` are mechanical steps, not something the user needs a play-by-play
+of — don't narrate "resolving the tool name," "the tool name is `mcp__<uuid>__...`," or
+"substituting it in" as chat text. It's internal plumbing; the user cares that the
+dashboard works, not which UUID a connector happens to be registered under this session.
+
+## Template
+
+Copy the HTML below **verbatim** — do not reimagine the structure, CSS, or JS. It already
+has the correct self-contained local color palette (`:root` block up top — this artifact
+renders in its own iframe with no injected host tokens, so the palette must be defined
+locally), sequential (non-parallel) data fetching, and the tooltip-overflow fixes already
+debugged in production. The only two things you ever change are the two placeholders:
+
+- `__CONFIG_JSON__` → replace with the resolved config object as a literal JS object,
+  e.g. `{ "version": 1, "domain": { "id": "uuid", "name": "flyinmiata.com" }, "blocks": ["core-kpis", "purchase-funnel", "top-products"] }`
+- `__NOIBU_TOOL_NAME__` → replace with the fully-qualified `noibu_search_sessions` tool
+  name resolved from your CURRENT session's live tools (see the warning inside the
+  template's own comments — never hardcode or reuse a `mcp__<server>__` prefix from a
+  previous session or from documentation, it rotates).
+
+Do a plain string substitution of both placeholders in the copy below, then pass the
+result as `html_path` to `create_artifact` (write it to a file first).
+
+```html
 <style>
   :root {
     color-scheme: light;
-
-    /* Backgrounds */
-    --color-bg-page: #F8FAFC;
-    --color-bg-card: #FFFFFF;
-
-    /* Text */
-    --color-text-primary: #0D121C;
-    --color-text-secondary: #6C7789;
-    --color-text-tertiary: #4F5C6F;
-    --color-text-muted: #9AA4B2;
-
-    /* Borders + fills */
-    --color-border: #E3EAF1;
-    --color-fill-muted: #C8D1DE;
-
-    /* Accent (primary action color) */
-    --color-accent: #2563EB;
-    --color-accent-bg: #E5EEFF;
-    --color-accent-bg-faint: #F5F8FF;
-
-    /* Semantic states */
-    --color-success: #046249;
-    --color-success-bg: #D8FEF3;
-    --color-success-bg-faint: #F3FFFC;
-    --color-warning: #AE6109;
-    --color-warning-bg: #FDEAD4;
-    --color-warning-bg-faint: #FFFAF4;
-    --color-error: #AC0C0C;
-    --color-error-bg: #FDDBD9;
-    --color-error-bg-faint: #FFF6F6;
+    --bg-primary: #ffffff;
+    --bg-secondary: #f7f7f5;
+    --bg-tertiary: #efefec;
+    --text-primary: #1a1a19;
+    --text-secondary: #6b6b67;
+    --text-muted: #a8a8a3;
+    --border: rgba(0,0,0,0.11);
+    --success-text: #1a7d4a;
+    --success-bg: #e8f5ec;
+    --danger-text: #a32d2d;
+    --danger-bg: #fcebeb;
   }
-
-  * { box-sizing: border-box; }
+    * { box-sizing: border-box; }
 
   .sp-app {
-    font-family: 'Inter', system-ui, sans-serif;
-    background: var(--color-bg-page);
-    color: var(--color-text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
     padding: 24px;
     font-size: 12px;
     line-height: 18px;
-    font-weight: 450;
   }
 
   /* Header */
@@ -55,31 +101,22 @@
   .sp-title {
     font-size: 20px;
     line-height: 32px;
-    font-weight: 460;
-    color: var(--color-text-primary);
+    font-weight: 500;
+    color: var(--text-primary);
     margin: 0;
   }
   .sp-domain {
-    font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     line-height: 16px;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     font-weight: 500;
     margin-top: 2px;
-  }
-  .sp-period-context {
-    font-size: 11px;
-    line-height: 16px;
-    color: var(--color-text-secondary);
-    font-weight: 540;
-    letter-spacing: 0.22px;
-    margin-top: 4px;
   }
   .sp-comparison-note {
     font-size: 11px;
     line-height: 16px;
-    color: var(--color-text-muted);
-    font-weight: 450;
+    color: var(--text-muted);
+    font-weight: 400;
     margin-top: 2px;
   }
 
@@ -93,30 +130,29 @@
   /* Time selector */
   .sp-selector {
     display: inline-flex;
-    border: 1px solid var(--color-border);
+    border: 1px solid var(--border);
     border-radius: 4px;
     overflow: hidden;
-    background: var(--color-bg-card);
+    background: var(--bg-primary);
   }
   .sp-selector button {
     background: transparent;
     border: 0;
     padding: 6px 14px;
-    font-family: 'Inter', system-ui, sans-serif;
     font-size: 12px;
     line-height: 18px;
-    font-weight: 540;
-    color: var(--color-text-secondary);
+    font-weight: 500;
+    color: var(--text-secondary);
     cursor: pointer;
-    border-right: 1px solid var(--color-border);
+    border-right: 1px solid var(--border);
   }
   .sp-selector button:last-child { border-right: 0; }
   .sp-selector button.active {
-    background: var(--color-accent);
-    color: var(--color-bg-card);
+    background: var(--text-primary);
+    color: var(--bg-primary);
   }
   .sp-selector button:not(.active):hover {
-    background: var(--color-bg-page);
+    background: var(--bg-tertiary);
   }
 
 
@@ -157,10 +193,9 @@
       text-decoration: none !important;
       cursor: auto !important;
     }
-    /* Cards: drop shadows, keep borders, never split a card across pages. */
+    /* Cards: keep borders, never split a card across pages. */
     .sp-card,
     .sp-kpi {
-      box-shadow: none !important;
       page-break-inside: avoid;
       break-inside: avoid;
     }
@@ -177,30 +212,29 @@
     max-width: 820px;
   }
   .sp-summary-text {
-    font-size: 14px;
-    line-height: 22px;
-    color: var(--color-text-primary);
-    font-weight: 480;
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--text-primary);
+    font-weight: 500;
   }
 
   /* Section heading */
   .sp-section-head {
     font-size: 11px;
     line-height: 16px;
-    font-weight: 540;
+    font-weight: 500;
     letter-spacing: 0.22px;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     text-transform: uppercase;
     margin: 0 0 8px 4px;
   }
 
   /* Card */
   .sp-card {
-    background: var(--color-bg-card);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border);
+    border-radius: 12px;
     padding: 16px;
-    box-shadow: 1px 1px 2px 1px rgba(13,18,28,0.08), 1px 1px 2px 1px rgba(13,18,28,0.10);
   }
 
   .sp-block { margin-bottom: 16px; }
@@ -212,42 +246,39 @@
     gap: 8px;
   }
   .sp-kpi {
-    background: var(--color-bg-card);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
+    background: var(--bg-secondary);
+    border-radius: 12px;
     padding: 16px;
   }
   .sp-kpi-label {
     font-size: 11px;
     line-height: 16px;
-    font-weight: 540;
+    font-weight: 500;
     letter-spacing: 0.22px;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     text-transform: uppercase;
   }
   .sp-kpi-value {
-    font-family: 'IBM Plex Mono', monospace;
     font-size: 20px;
     line-height: 32px;
     font-weight: 500;
-    color: var(--color-text-primary);
+    color: var(--text-primary);
     margin-top: 6px;
   }
   /* Period-over-period delta — plain colored text on KPI tiles and funnel steps. */
   .sp-kpi-delta,
   .sp-funnel-delta {
-    font-family: 'IBM Plex Mono', monospace;
     font-size: 11px;
     line-height: 16px;
-    font-weight: 540;
+    font-weight: 500;
   }
   .sp-kpi-delta { display: inline-block; margin-top: 4px; }
   .sp-kpi-delta.up,
-  .sp-funnel-delta.up   { color: var(--color-success); }
+  .sp-funnel-delta.up   { color: var(--success-text); }
   .sp-kpi-delta.down,
-  .sp-funnel-delta.down { color: var(--color-warning); }
+  .sp-funnel-delta.down { color: var(--danger-text); }
   .sp-kpi-delta.flat,
-  .sp-funnel-delta.flat { color: var(--color-text-secondary); }
+  .sp-funnel-delta.flat { color: var(--text-secondary); }
 
   /* Funnel &mdash; vertical stepped bars */
   /* Purchase funnel — header row (label + value + delta) above a body row of bars.
@@ -265,8 +296,8 @@
     z-index: 5;
   }
   .sp-funnel-step-h .sp-funnel-label {
-    font-size: 11px; line-height: 16px; font-weight: 540; letter-spacing: 0.22px;
-    color: var(--color-text-secondary); text-transform: uppercase;
+    font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.22px;
+    color: var(--text-secondary); text-transform: uppercase;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   /* Headline lets the value + delta wrap to a second line when the column is too
@@ -276,8 +307,8 @@
     gap: 4px 8px; margin-top: 2px;
   }
   .sp-funnel-headline .sp-funnel-value {
-    font-family: 'IBM Plex Mono', monospace; font-size: 16px; line-height: 22px;
-    font-weight: 500; color: var(--color-text-primary);
+    font-size: 16px; line-height: 22px;
+    font-weight: 500; color: var(--text-primary);
     /* Allow the value to wrap so step 1's "X sessions" breaks between number and word
        when the column is narrow. Percentages like "49.3%" have no whitespace and stay
        on one line. The delta keeps its own white-space: nowrap so "↓ 8.1pp" stays
@@ -292,7 +323,7 @@
   .sp-funnel-divider {
     position: absolute; right: 10px; top: -4px;
     width: 0.5px; height: 1200px;
-    background: var(--color-border); pointer-events: none;
+    background: var(--border); pointer-events: none;
   }
   /* Clip the funnel card so the tall dividers stop at the card edge. Also drop the
      bottom padding so the bars sit flush with the card's bottom edge — looks tighter
@@ -304,13 +335,13 @@
   .sp-funnel-step-b { flex: 1; min-width: 0; position: relative; height: 200px; }
   .sp-funnel-drop-zone {
     position: absolute; left: 0; right: 50%; bottom: 0;
-    background: rgba(0,0,0,0.06);
+    background: var(--bg-tertiary);
     border-radius: 4px 4px 0 0;
     cursor: help;
   }
   .sp-funnel-bar {
     position: absolute; left: 0; right: 50%; bottom: 0;
-    background: var(--color-text-primary);
+    background: var(--text-primary);
     border-radius: 4px 4px 0 0;
     overflow: hidden;
     cursor: help;
@@ -331,16 +362,16 @@
   }
   .sp-funnel-conn {
     position: absolute; right: 0; width: 50%;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0) 100%);
+    background: linear-gradient(to bottom, rgba(26,26,25,0.18) 0%, rgba(26,26,25,0) 100%);
     pointer-events: none;
   }
   .sp-funnel-tip {
     position: absolute; left: 4px;
-    background: var(--color-text-primary); color: var(--color-bg-card);
+    background: var(--text-primary); color: var(--bg-primary);
     padding: 8px 12px; border-radius: 4px;
     font-size: 11px; line-height: 16px; font-weight: 400;
     visibility: hidden; z-index: 100; pointer-events: none;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.22);
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
     width: max-content; max-width: 260px;
   }
   .sp-funnel-tip-line { white-space: nowrap; }
@@ -364,25 +395,24 @@
   .sp-table th {
     font-size: 11px;
     line-height: 16px;
-    font-weight: 540;
+    font-weight: 500;
     letter-spacing: 0.22px;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     text-transform: uppercase;
     text-align: left;
     padding: 8px 16px 8px 0;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--border);
   }
   /* All columns default to left-aligned. The .num class on cells just marks them as numerical (mono font); alignment is inherited from the table default. */
   .sp-table td {
     padding: 10px 16px 10px 0;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--border);
     vertical-align: middle;
     font-size: 12px;
     line-height: 18px;
-    color: var(--color-text-primary);
+    color: var(--text-primary);
   }
   .sp-table td.num {
-    font-family: 'IBM Plex Mono', monospace;
     font-weight: 500;
   }
 
@@ -400,7 +430,6 @@
     justify-content: space-between;
     width: 100px;
     vertical-align: middle;
-    font-family: 'IBM Plex Mono', monospace;
     font-weight: 500;
   }
   .sp-table tbody tr:last-child td { border-bottom: 0; }
@@ -435,9 +464,8 @@
   .sp-indicator-track {
     position: absolute;
     inset: 0;
-    background: var(--color-border);
+    background: var(--bg-tertiary);
     border-radius: 3px;
-    opacity: 0.6;
   }
   .sp-indicator-tick {
     position: absolute;
@@ -445,7 +473,7 @@
     top: -2px;
     bottom: -2px;
     width: 1px;
-    background: var(--color-text-tertiary);
+    background: var(--text-muted);
     transform: translateX(-50%);
     z-index: 2;
   }
@@ -457,20 +485,20 @@
     border-radius: 3px;
     z-index: 1;
   }
-  .sp-indicator-fill.up { background: var(--color-success); }
-  .sp-indicator-fill.down { background: var(--color-warning); }
-  .sp-indicator-fill.flat { background: var(--color-fill-muted); }
+  .sp-indicator-fill.up { background: var(--success-text); }
+  .sp-indicator-fill.down { background: var(--danger-text); }
+  .sp-indicator-fill.flat { background: var(--bg-tertiary); }
   .sp-indicator-tooltip {
     visibility: hidden;
     position: absolute;
     bottom: 16px;
     left: 50%;
     transform: translateX(-50%);
-    background: var(--color-text-primary);
-    color: var(--color-bg-card);
+    background: var(--text-primary);
+    color: var(--bg-primary);
     font-size: 11px;
     line-height: 16px;
-    font-weight: 540;
+    font-weight: 500;
     letter-spacing: 0.22px;
     padding: 4px 8px;
     border-radius: 4px;
@@ -485,20 +513,20 @@
   .sp-empty {
     text-align: center;
     padding: 32px 16px;
-    color: var(--color-text-tertiary);
+    color: var(--text-muted);
     font-size: 13px;
     font-style: italic;
   }
   .sp-empty-row td {
     text-align: center !important;
     padding: 28px 16px !important;
-    color: var(--color-text-tertiary);
+    color: var(--text-muted);
     font-style: italic;
     font-size: 12px;
   }
   .sp-empty-text {
     font-size: 12px;
-    color: var(--color-text-secondary);
+    color: var(--text-secondary);
     margin-bottom: 12px;
   }
   .sp-btn {
@@ -506,31 +534,29 @@
     align-items: center;
     padding: 6px 16px;
     font-size: 14px;
-    font-weight: 540;
+    font-weight: 500;
     line-height: 22px;
-    border: 1px solid var(--color-border);
-    background: var(--color-bg-card);
-    color: var(--color-accent);
-    border-radius: 4px;
+    border: 0.5px solid var(--border);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-radius: 8px;
     cursor: pointer;
     margin-right: 8px;
-    font-family: inherit;
   }
-  .sp-btn:hover { border-color: var(--color-accent); }
+  .sp-btn:hover { background: var(--bg-tertiary); }
   .sp-btn.primary {
-    background: var(--color-accent);
-    color: var(--color-bg-card);
-    border-color: var(--color-accent);
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    border-color: var(--text-primary);
   }
   .sp-btn.primary:hover {
-    background: var(--color-accent);
-    filter: brightness(0.92);
+    opacity: 0.85;
   }
 
   /* Inline methodology tooltip &mdash; dotted underline on the term, hover for explanation */
   .sp-tip {
     text-decoration: underline dotted;
-    text-decoration-color: var(--color-text-muted);
+    text-decoration-color: var(--text-muted);
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
     cursor: help;
@@ -541,28 +567,29 @@
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
-    background: var(--color-text-primary);
-    color: var(--color-bg-card);
+    background: var(--text-primary);
+    color: var(--bg-primary);
     padding: 10px 12px;
     border-radius: 4px;
     font-size: 11px;
     line-height: 16px;
-    font-weight: 450;
+    font-weight: 400;
     letter-spacing: 0;
     text-transform: none;
     width: 280px;
+    max-width: calc(100vw - 32px);
     z-index: 100;
     white-space: normal;
     text-align: left;
     pointer-events: none;
-    box-shadow: 0px 3px 9px 0px rgba(13,18,28,0.16);
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
   }
   .sp-tip:hover .sp-tip-text {
     visibility: visible;
   }
   .sp-tip-text strong {
-    font-weight: 540;
-    color: var(--color-bg-card);
+    font-weight: 500;
+    color: var(--bg-primary);
   }
   /* When the tooltip would overflow the right edge of the viewport, JS adds this class to anchor it to the trigger's right edge instead, so it extends leftward. */
   .sp-tip-text.flip-left {
@@ -574,33 +601,37 @@
 
 <div class="sp-app">
 
-  <!-- HEADER -->
-  <div class="sp-header">
-    <div>
-      <h1 class="sp-title">Store Pulse</h1>
-      <div class="sp-domain" id="sp-domain-name"></div>
-      <div class="sp-period-context" id="sp-period-context">LAST 24 HOURS &middot; MAY 4 7:00PM &ndash; MAY 5 7:00PM EDT</div>
-      <div class="sp-comparison-note">All metric changes are compared to the previous period of the same length</div>
-    </div>
-    <div class="sp-controls">
-      <div class="sp-selector" role="tablist">
-        <button class="active" data-period="24h" onclick="spSetPeriod('24h')">24h</button>
-        <button data-period="7d" onclick="spSetPeriod('7d')">7d</button>
-        <button data-period="30d" onclick="spSetPeriod('30d')">30d</button>
+  <!-- OVERVIEW: header + editorial summary + core KPIs, combined into one card.
+       Wrapped in .sp-block (not just .sp-card) so it gets the same margin-bottom as
+       every other section below it — without this wrapper the top card and the
+       funnel card directly below it touch with no gap. -->
+  <div class="sp-block">
+  <div class="sp-card">
+    <div class="sp-header">
+      <div>
+        <h1 class="sp-title">Store Pulse</h1>
+        <div class="sp-domain" id="sp-domain-name"></div>
+        <div class="sp-comparison-note" id="sp-status-line">Based on Noibu data and compared to previous period of the same length</div>
+      </div>
+      <div class="sp-controls">
+        <div class="sp-selector" role="tablist">
+          <button class="active" data-period="24h" onclick="spSetPeriod('24h')">24h</button>
+          <button data-period="7d" onclick="spSetPeriod('7d')">7d</button>
+          <button data-period="30d" onclick="spSetPeriod('30d')">30d</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- EDITORIAL SUMMARY -->
-  <div class="sp-summary">
-    <div class="sp-summary-text" id="sp-summary-text">
-      Traffic is moderate at 1,276 sessions but engagement is unusually low &mdash; 4 orders landed at a healthy $87 AOV. The biggest leak is product page &rarr; add-to-cart, where only 8.6% of product viewers added anything to cart. Pre-order Hot Wheels listings drove the most traffic but converted poorly.
+    <div class="sp-summary">
+      <div class="sp-summary-text" id="sp-summary-text">
+        Traffic is moderate at 1,276 sessions but engagement is unusually low &mdash; 4 orders landed at a healthy $87 AOV. The biggest leak is product page &rarr; add-to-cart, where only 8.6% of product viewers added anything to cart. Pre-order Hot Wheels listings drove the most traffic but converted poorly.
+      </div>
+    </div>
+
+    <div class="sp-block" data-block="core-kpis">
+      <div class="sp-kpis" id="sp-kpis"></div>
     </div>
   </div>
-
-  <!-- CORE KPIs -->
-  <div class="sp-block" data-block="core-kpis">
-    <div class="sp-kpis" id="sp-kpis"></div>
   </div>
 
   <!-- PURCHASE FUNNEL -->
@@ -634,7 +665,7 @@
             <th class="num">Sessions</th>
             <th class="indicator-h"><span class="indicator-h-text">Engagement</span></th>
             <th class="indicator-h"><span class="indicator-h-text">Conversion</span></th>
-            <th class="indicator-h"><span class="indicator-h-text"><span class="sp-tip">RPS<span class="sp-tip-text">Revenue per session &mdash; channel revenue divided by channel sessions.</span></span></span></th>
+            <th class="indicator-h"><span class="indicator-h-text"><span class="sp-tip">RPS<span class="sp-tip-text flip-left" data-tip-anchor="right">Revenue per session &mdash; channel revenue divided by channel sessions.</span></span></span></th>
           </tr>
         </thead>
         <tbody id="sp-channels"></tbody>
@@ -650,7 +681,7 @@
           <tr>
             <th>Paid Ad Platform</th>
             <th class="num">Sessions</th>
-            <th class="num"><span class="sp-tip">Conversions<span class="sp-tip-text">Last-touch attributed via UTM and matched to your store's order data. Will diverge from each ad platform's native conversion count due to attribution-window differences.</span></span></th>
+            <th class="num"><span class="sp-tip">Conversions<span class="sp-tip-text flip-left" data-tip-anchor="right">Last-touch attributed via UTM and matched to your store's order data. Will diverge from each ad platform's native conversion count due to attribution-window differences.</span></span></th>
             <th class="num">Revenue</th>
           </tr>
         </thead>
@@ -664,11 +695,18 @@
 <script>
   // ===== Helpers =====
   // Wraps an acronym (or any term) with the dotted-underline tooltip pattern.
-  const acronymTip = (acronym, fullName) =>
-    `<span class="sp-tip">${acronym}<span class="sp-tip-text">${fullName}</span></span>`;
+  // alignRight anchors the tooltip's right edge to the trigger instead of its left —
+  // use for triggers sitting in the rightmost column(s), where a left-anchored 280px
+  // tooltip would overflow past the card/app edge.
+  const acronymTip = (acronym, fullName, alignRight) =>
+    `<span class="sp-tip">${acronym}<span class="sp-tip-text${alignRight ? ' flip-left' : ''}"${alignRight ? ' data-tip-anchor="right"' : ''}>${fullName}</span></span>`;
 
   // ===== Configuration injected at artifact create-time =====
   const SP_CONFIG = __CONFIG_JSON__;
+
+  // Default caption shown in the status line once data has loaded. The same element
+  // is repurposed to show "Loading..." during a fetch and error text on failure.
+  const SP_CAPTION = 'Based on Noibu data and compared to previous period of the same length';
 
   // Populate the header's domain name from the baked-in config. The HTML carries no
   // hardcoded domain — every dashboard reflects whatever store the user set up.
@@ -709,17 +747,21 @@
   // an auth-required response gets handed to noibuRecords(), which doesn't recognize the
   // shape, returns [], and every metric renders as zero with no indication of why.
   //
-  // The `mcp__a53d8516-...__` prefix is the canonical Noibu MCP server identifier and is
-  // duplicated in SKILL.md step 3 (inside the `mcp_tools` array passed to
-  // `create_artifact`). If Noibu's MCP UUID ever rotates, BOTH sites must be updated
-  // together — otherwise the dashboard will render but every data call silently fails.
+  // SP_NOIBU_TOOL is substituted when this template is copied (a plain text replace of
+  // the __NOIBU_TOOL_NAME__ placeholder — see references/live-dashboard.md) with the
+  // fully-qualified noibu_search_sessions tool name resolved from the CURRENT session's
+  // live tools. The mcp__<uuid>__ prefix is a per-installation connector instance ID — it
+  // differs between accounts and rotates when the connector is re-published or re-added,
+  // so it must NEVER be hardcoded. The same resolved name must be passed as `mcp_tools`
+  // to create_artifact/update_artifact so the call and the allowlist always agree.
   // ===== Serialized request queue + rate-limit backoff =====
-  // A single dashboard render fans out ~9 Noibu queries. Firing them all at once (the
-  // various Promise.all sites below) overwhelms the Artifact MCP bridge's rate limiter,
-  // which returns "Artifact MCP rate limit exceeded". To stay under it we funnel EVERY
-  // call through a queue that runs one request at a time, spaced by SP_REQ_GAP_MS, and
-  // retry with exponential backoff whenever the limiter pushes back. The callers keep
-  // using Promise.all for readability — the queue transparently serializes the work.
+  // A single dashboard render fans out up to 9 Noibu queries. spFetchData below already
+  // awaits each one in series (never more than one in flight), which avoids the MCP
+  // bridge timeouts that concurrent fan-out used to cause. This queue is a second layer
+  // of protection on top of that: it still enforces a minimum SP_REQ_GAP_MS gap between
+  // consecutive calls and retries with exponential backoff if the rate limiter ever pushes
+  // back ("Artifact MCP rate limit exceeded"), which can still happen even with serial calls
+  // if they land close together.
   const SP_REQ_GAP_MS = 150;   // minimum spacing between consecutive MCP calls
   const SP_MAX_RETRIES = 5;    // retries on rate-limit before surfacing the error
   let spQueueTail = Promise.resolve();
@@ -740,9 +782,16 @@
     return run;
   }
 
+  const SP_NOIBU_TOOL = '__NOIBU_TOOL_NAME__';
+
   async function callNoibu(input) {
+    if (SP_NOIBU_TOOL.indexOf('__NOIBU_TOOL_NAME') === 0) {
+      const e = new Error('Dashboard template was rendered without a Noibu tool name — re-run Store Pulse setup.');
+      e.noibuKind = 'tool';
+      throw e;
+    }
     const fire = () => window.cowork.callMcpTool(
-      'mcp__a53d8516-38be-4a45-bddb-88be145c1e57__noibu_search_sessions',
+      SP_NOIBU_TOOL,
       { domainId: SP_CONFIG.domain.id, input, rationale: 'Store Pulse dashboard data fetch' }
     );
 
@@ -1055,31 +1104,31 @@
   async function spFetchData(period) {
     const w = spPeriodWindows(period);
     const blocks = SP_CONFIG.blocks || [];
-    const tasks = {};
+    const data = {};
+
+    // Fetched strictly in series — one query fully resolves before the next is even
+    // started. A single render fans out up to 9 Noibu queries; firing them concurrently
+    // (via Promise.all) has caused MCP bridge timeouts, so there must never be more than
+    // one request in flight at a time here.
     if (blocks.includes('core-kpis')) {
-      tasks.kpisCurrent = fetchCoreKpis(w.current);
-      tasks.kpisPrior   = fetchCoreKpis(w.prior);
+      data.kpisCurrent = await fetchCoreKpis(w.current);
+      data.kpisPrior   = await fetchCoreKpis(w.prior);
     }
     if (blocks.includes('purchase-funnel')) {
-      tasks.funnelCurrent = fetchFunnel(w.current);
-      tasks.funnelPrior   = fetchFunnel(w.prior);
+      data.funnelCurrent = await fetchFunnel(w.current);
+      data.funnelPrior   = await fetchFunnel(w.prior);
     }
     if (blocks.includes('top-products')) {
-      tasks.topProducts = fetchTopProducts(w.current);
+      data.topProducts = await fetchTopProducts(w.current);
     }
     if (blocks.includes('channel-performance')) {
-      tasks.channels = fetchChannels(w.current);
+      data.channels = await fetchChannels(w.current);
     }
     if (blocks.includes('paid-performance')) {
       // Always render paid-performance if enabled. The block self-heals — unconnected
       // platforms render with a "Connect" button instead of being hidden.
-      tasks.paid = fetchPaid(w.current);
+      data.paid = await fetchPaid(w.current);
     }
-
-    const keys = Object.keys(tasks);
-    const values = await Promise.all(keys.map(k => tasks[k]));
-    const data = {};
-    keys.forEach((k, i) => { data[k] = values[i]; });
 
     const out = { label: w.label, summary: '' };
 
@@ -1173,7 +1222,7 @@
     const sel = document.querySelectorAll('.sp-selector button');
     sel.forEach(b => b.classList.toggle('active', b.dataset.period === period));
 
-    document.getElementById('sp-period-context').innerHTML = 'Loading...';
+    document.getElementById('sp-status-line').innerHTML = 'Loading...';
     document.getElementById('sp-summary-text').innerText = '';
     // Hide all blocks while fetching so we don't show stale data alongside the loading state.
     document.querySelectorAll('[data-block]').forEach(el => { el.style.display = 'none'; });
@@ -1194,7 +1243,7 @@
       } else {
         msg = 'Failed to load data &mdash; ' + (err?.message || 'unknown error') + '. Check the browser console and reload.';
       }
-      document.getElementById('sp-period-context').innerHTML = msg;
+      document.getElementById('sp-status-line').innerHTML = msg;
       return;
     }
 
@@ -1202,7 +1251,7 @@
     // so the dashboard never paints data for a period the user already moved off of.
     if (myToken !== spRenderToken) return;
 
-    document.getElementById('sp-period-context').innerHTML = d.label;
+    document.getElementById('sp-status-line').innerHTML = SP_CAPTION;
 
     // Editorial summary &mdash; kicked off FIRST so that any later block render error can't
     // skip it. Runs async, doesn't block UI; spGenerateSummary always falls back to a
@@ -1229,7 +1278,7 @@
         console.error(`Block render failed: ${blockId}`, err);
         const blockEl = document.querySelector(`[data-block="${blockId}"]`);
         if (blockEl) {
-          blockEl.innerHTML = `<div class="sp-card" style="color:var(--color-text-secondary);font-size:13px;">Couldn&rsquo;t render this section &mdash; check the browser console for details.</div>`;
+          blockEl.innerHTML = `<div class="sp-card" style="color:var(--text-secondary);font-size:13px;">Couldn&rsquo;t render this section &mdash; check the browser console for details.</div>`;
         }
       }
     }
@@ -1241,8 +1290,8 @@
         ['sessions', 'Sessions', null],
         ['engagement', 'Engagement', "Share of sessions that scrolled or clicked &mdash; derived from Noibu's bounce signal (engaged = not bounced)."],
         ['cvr', 'Conversion', null],
-        ['aov', acronymTip('AOV', 'Average order value &mdash; total revenue divided by orders.'), null],
-        ['rps', acronymTip('RPS', 'Revenue per session &mdash; total revenue divided by sessions.'), null]
+        ['aov', acronymTip('AOV', 'Average order value &mdash; total revenue divided by orders.', true), null],
+        ['rps', acronymTip('RPS', 'Revenue per session &mdash; total revenue divided by sessions.', true), null]
       ];
       const labelWithTip = (text, tip) => tip
         ? `<span class="sp-tip">${text}<span class="sp-tip-text">${tip}</span></span>`
@@ -1351,7 +1400,7 @@
         // bar near the top to signal "this bar has been clipped, would extend higher
         // at true scale." See .sp-funnel-sawtooth CSS.
         const barInner = (i === 0 && isCompressed)
-          ? `<svg class="sp-funnel-sawtooth" viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true"><path d="M0,3 L5,9 L10,3 L15,9 L20,3 L25,9 L30,3 L35,9 L40,3 L45,9 L50,3 L55,9 L60,3 L65,9 L70,3 L75,9 L80,3 L85,9 L90,3 L95,9 L100,3" stroke="var(--color-bg-card)" stroke-width="2" fill="none"/></svg>`
+          ? `<svg class="sp-funnel-sawtooth" viewBox="0 0 100 12" preserveAspectRatio="none" aria-hidden="true"><path d="M0,3 L5,9 L10,3 L15,9 L20,3 L25,9 L30,3 L35,9 L40,3 L45,9 L50,3 L55,9 L60,3 L65,9 L70,3 L75,9 L80,3 L85,9 L90,3 L95,9 L100,3" stroke="var(--bg-primary)" stroke-width="2" fill="none"/></svg>`
           : '';
         const bar = `<div class="sp-funnel-bar" style="top:${tp}px;">${barInner}</div>`;
 
@@ -1541,7 +1590,7 @@
     // Immediate visual feedback without waiting on the network.
     document.querySelectorAll('.sp-selector button').forEach(b =>
       b.classList.toggle('active', b.dataset.period === period));
-    const ctx = document.getElementById('sp-period-context');
+    const ctx = document.getElementById('sp-status-line');
     if (ctx) ctx.innerHTML = 'Loading...';
 
     if (spPendingTimer) clearTimeout(spPendingTimer);
@@ -1556,20 +1605,41 @@
 
 
   // On hover, decide whether the tooltip should extend rightward (default) or leftward (when
-  // the trigger sits close to the right edge of the viewport so a 280px-wide tooltip would clip).
+  // the trigger sits close to the right edge so a 280px-wide tooltip would clip).
+  // Measured against .sp-app's own rendered box, NOT window.innerWidth — the artifact's
+  // layout viewport can be wider than what the host actually displays (e.g. a narrow
+  // sidebar clips a wider iframe), so window.innerWidth under-reports the real cutoff and
+  // the tooltip never flips even though it visibly overflows.
   // Uses event delegation on mouseover (which bubbles) so dynamically-rendered tips are covered.
   document.addEventListener('mouseover', (e) => {
     const tip = e.target.closest && e.target.closest('.sp-tip');
     if (!tip) return;
     const tooltip = tip.querySelector(':scope > .sp-tip-text');
     if (!tooltip) return;
+    // Some tooltips are statically pinned (data-tip-anchor) because they sit in a known
+    // rightmost column — leave those alone so this dynamic check can't undo the fix.
+    if (tooltip.dataset.tipAnchor) return;
+    const appEl = document.querySelector('.sp-app');
+    const boundRight = appEl ? appEl.getBoundingClientRect().right : window.innerWidth;
     const rect = tip.getBoundingClientRect();
     const TOOLTIP_W = 280;
     const MARGIN = 16;
-    if (rect.left + TOOLTIP_W > window.innerWidth - MARGIN) {
+    if (rect.left + TOOLTIP_W > boundRight - MARGIN) {
       tooltip.classList.add('flip-left');
     } else {
       tooltip.classList.remove('flip-left');
     }
   });
 </script>
+
+```
+
+## Artifact metadata
+
+- `id`: domain-derived slug, always suffix-qualified, e.g. `store-pulse-flyinmiata-com` (see above)
+- `title`: `Store Pulse — [Label]`, suffix-qualified only on Label collision — e.g. `Store
+  Pulse — Flyinmiata`, or `Store Pulse — Atari (.com)` if `atari.ca` also exists (see above)
+- `description`: `Live Store Pulse dashboard for [domain] — KPIs, funnel, and any enabled blocks`
+- `mcp_tools`: `[<the resolved noibu_search_sessions tool name>]` — must exactly match what
+  you substituted into `__NOIBU_TOOL_NAME__`, or every data call fails with an allowlist
+  error even though the connector works fine in chat.

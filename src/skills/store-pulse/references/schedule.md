@@ -120,7 +120,7 @@ Slack unfurls the canvas URL automatically into a preview card, so a one-line me
 
 ## Scheduling form widget
 
-The form rendered via `mcp__visualize__show_widget` (title: `schedule_store_pulse`) during Setup step 4b. Pass this HTML verbatim — don't reconstruct from memory, don't trim, don't rename ids or classes (the inline JS depends on every selector).
+The form rendered via `mcp__visualize__show_widget` (title: `schedule_store_pulse`), triggered by the "Schedule report" button (see SKILL.md's "Schedule report" flow) or by a direct request to schedule/edit a report. Pass this HTML verbatim — don't reconstruct from memory, don't trim, don't rename ids or classes (the inline JS depends on every selector).
 
 **Note on `sendPrompt`.** The form's Skip button and the `submitSchedule()` function both call `sendPrompt(text)` — this is a global function Cowork injects into the widget execution context when the HTML is rendered through `mcp__visualize__show_widget`. It is **not a standard browser API**. Rendering this HTML any other way (inline in chat, via `mcp__cowork__create_artifact`, etc.) leaves `sendPrompt` undefined and both buttons silently no-op. If Cowork ever moves this global to a different namespace (e.g. `window.cowork.sendPrompt`), the two `sendPrompt(...)` call sites in the snippet below need to be updated to match.
 
@@ -227,6 +227,20 @@ function submitSchedule(){
 </script>
 ```
 
+## Task identity (multi-domain)
+
+Since a user can now have a separate Store Pulse dashboard per domain, each domain's
+schedule needs to be its own independent scheduled task — creating or editing one must
+never touch another domain's cron.
+
+- **Task name:** `store-pulse-[domain-slug]` (e.g. `store-pulse-flyinmiata-com`). This is
+  what makes crons for different domains distinguishable in `list_scheduled_tasks` output.
+- **Before creating, call `list_scheduled_tasks` and check whether a task with this exact
+  name already exists.** If it does, this is an edit — use `update_scheduled_task` on that
+  task's id, not a new `create_scheduled_task` call. If not, create one.
+- Never match on domain name alone when scanning existing tasks — match on the exact task
+  name above, since a partial/fuzzy match could pick up an unrelated task.
+
 ## Cron task prompt template
 
 Substitute this into the `description` field of `mcp__scheduled-tasks__create_scheduled_task`. The cron runs cold — no chat history — so the prompt must be self-contained.
@@ -242,10 +256,12 @@ Resolve each prefix from a tool you've already called or have visible in your av
   - `{{slack_message_tool}}` → `mcp__<server>__slack_send_message`
 - **Gmail** (only if any delivery has `channel_account == "gmail"`): find the Gmail draft-creation tool in your available tools — it appears as `mcp__<server>__create_draft` and sits alongside other Gmail tools (`search_threads`, `list_labels`, `list_drafts`). The `<server>` segment is typically a UUID rather than the slug `gmail`.
   - `{{gmail_draft_tool}}` → `mcp__<server>__create_draft` (the Gmail one)
-- **Outlook** (only if any delivery has `channel_account == "outlook"`): find the Microsoft 365 / Outlook draft-creation tool in your available tools — name varies by connector (commonly `mcp__<server>__create_draft` or similar under a Microsoft 365 server). If you can't find one, surface that to the user and don't create the cron — the run will fail otherwise.
+- **Outlook** (only if any delivery has `channel_account == "outlook"`): find the Microsoft 365 / Outlook draft-creation tool in your available tools — name varies by connector (commonly `mcp__<server>__create_draft` or similar under a Microsoft 365 server).
   - `{{outlook_draft_tool}}` → the fully-qualified name you found
 
 For any channel that isn't part of the user's deliveries, you can leave its placeholder unsubstituted — it's only referenced on the branch that runs.
+
+**None of this should come up here in practice.** By the time you reach this step, SKILL.md's "Schedule report" step 4 has already confirmed each picked delivery's connector is live — that's where a missing Slack/Gmail/Outlook connector gets handled, via `search_mcp_registry` + `suggest_connectors` (the Connect-button widget), never a plain-text install link. If a donor tool genuinely can't be found here even though step 4 said it was resolved, treat that as a bug (e.g. the connector was disconnected mid-flow) rather than re-prompting with a link — re-run step 4's check for that channel.
 
 ```
 Run a scheduled Store Pulse report for {{domain.name}}.
